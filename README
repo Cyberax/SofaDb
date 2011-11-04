@@ -1,0 +1,4 @@
+Basically, this is going to be a port of CouchDB to C++ with wire-compatible replication protocol.
+
+SofaDB is mainly designed to be a FAST replacement for embedded devices. Also, it's a personal experiment
+serving to prove that Erlang is quite fast enough compared to C++ implementation.
