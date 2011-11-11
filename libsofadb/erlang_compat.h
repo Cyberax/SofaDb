@@ -1,15 +1,13 @@
 #ifndef ERLANG_COMPAT_H
 #define ERLANG_COMPAT_H
 
-#include <string>
-#include <vector>
-#include <boost/shared_ptr.hpp>
+#include "common.h"
+
 #include <boost/type_traits.hpp>
 #include <boost/variant.hpp>
 #include <boost/shared_array.hpp>
-#include <type_traits>
 
-#include <netinet/in.h>
+#include "binary_stream.hpp"
 
 #define VERSION_MAGIC 131
 #define NIL_EXT (106)
@@ -18,44 +16,10 @@
 #define STRING_EXT (107)
 #define MAX_STRING_LEN 0xffff
 #define LIST_EXT (108)
+#define SMALL_TUPLE_EXT (104)
+#define LARGE_TUPLE_EXT (105)
 
 namespace erlang {
-
-	class output_stream
-	{
-	public:
-		virtual ~output_stream() {};
-		virtual void write(const void *data, size_t bytes);
-
-		void write_byte(unsigned char ch)
-		{
-			write(&ch, 1);
-		}
-
-		void write_int2(unsigned short val)
-		{
-			unsigned short msb = htons(val);
-			write(&msb, 2);
-		}
-
-		void write_int4(unsigned int val)
-		{
-			unsigned int msb = htonl(val);
-			write(&msb, 4);
-		}
-	};
-
-	class buf_stream : public output_stream
-	{
-	public:
-		std::vector<unsigned char> buffer;
-		void write(const void *data, size_t bytes)
-		{
-			buffer.insert(buffer.end(),
-						  static_cast<const char*>(data),
-						  static_cast<const char*>(data)+bytes);
-		}
-	};
 
 	struct atom_t
 	{
@@ -67,7 +31,7 @@ namespace erlang {
 		std::string digits_;
 	};
 
-	struct nil_t {};
+	struct erl_nil_t {};
 	struct list_t;
 	typedef boost::shared_ptr<list_t> list_ptr_t;
 
@@ -75,7 +39,7 @@ namespace erlang {
 	typedef boost::shared_ptr<tuple_t> tuple_ptr_t;
 
 	typedef boost::variant<
-		nil_t,
+		erl_nil_t,
 		atom_t,
 		double,
 		integer_t,
@@ -89,8 +53,8 @@ namespace erlang {
 		list_ptr_t next_;
 		erl_type_t val_;
 
-		static list_ptr_t make();
-		static list_ptr_t make(const list_t &other);
+		SOFADB_PUBLIC static list_ptr_t make();
+		SOFADB_PUBLIC static list_ptr_t make(const list_t &other);
 	};
 
 	struct tuple_t
@@ -103,7 +67,7 @@ namespace erlang {
 	// http://www.erlang.org/doc/apps/erts/erl_ext_dist.html
 	//and is implemented in otp_src/erts/emulator/beam/external.c
 	//in the OTP source.
-	void term_to_binary(const erl_type_t &term, output_stream *out);
+	SOFADB_PUBLIC void term_to_binary(const erl_type_t &term, utils::output_stream *out);
 
 }; //namespace erlang
 

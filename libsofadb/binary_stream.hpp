@@ -1,82 +1,48 @@
-//  boost/binary_stream.hpp  ----------------------------------------------------------//
+#ifndef BINARY_STREAM_HPP
+#define BINARY_STREAM_HPP
 
-//  Copyright Beman Dawes 2009, 2011
+#include "common.h"
+#include <netinet/in.h>
+#include <vector>
 
-//  Distributed under the Boost Software License, Version 1.0.
-//  See http://www.boost.org/LICENSE_1_0.txt
+namespace utils {
 
-//  See documentation at http://www.boost.org/libs/utility
+	class output_stream
+	{
+	public:
+		virtual ~output_stream() {};
+		virtual void write(const void *data, size_t bytes)=0;
 
-#ifndef BOOST_BINARY_STREAM_HPP
-#define BOOST_BINARY_STREAM_HPP
+		void write_byte(unsigned char ch)
+		{
+			write(&ch, 1);
+		}
 
-#include <boost/config.hpp>
-#include <ostream>
-#include <istream>
-#include <string>
-#include <cstring>  // for strlen
+		void write_int2(unsigned short val)
+		{
+			unsigned short msb = htons(val);
+			write(&msb, 2);
+		}
 
-#ifndef BOOST_NO_CWCHAR
-# include <cwchar>   // for wcslen
-#endif
+		void write_int4(unsigned int val)
+		{
+			unsigned int msb = htonl(val);
+			write(&msb, 4);
+		}
+	};
 
-//  unformatted binary (as opposed to formatted character) input and output
+	class buf_stream : public output_stream
+	{
+	public:
+		std::vector<unsigned char> buffer;
+		void write(const void *data, size_t bytes)
+		{
+			buffer.insert(buffer.end(),
+						  static_cast<const char*>(data),
+						  static_cast<const char*>(data)+bytes);
+		}
+	};
 
-//  Caution: Use only on streams opened with filemode std::ios_base::binary. Thus
-//  unformatted binary I/O should not be with the standard streams (cout, cin, etc.)
-//  since they are opened in text mode. Use on text streams may produce incorrect
-//  results, such as insertion of unwanted characters or premature end-of-file.
-//  For example, on Windows 0x0D would become 0x0D, 0x0A.
+}  // namespace utils
 
-namespace boost
-{
-
-namespace detail
-{
-  template <class T>
-  struct const_binary_data
-  {
-    const char* ptr;
-    explicit const_binary_data(const T& x) : ptr(reinterpret_cast<const char*>(&x)) {}
-  };
-  template <class T>
-  struct binary_data
-  {
-    char* ptr;
-    explicit binary_data(T& x) : ptr(reinterpret_cast<char*>(&x)) {}
-  };
-}
-
-template <class T>
-inline detail::const_binary_data<T> bin(const T& x)
-{
-  return detail::const_binary_data<T>(x);
-}
-
-template <class T>
-inline detail::binary_data<T> bin(T& x)
-{
-  return detail::binary_data<T>(x);
-}
-
-template <class T>
-inline std::ostream& operator<<(std::ostream& os, detail::const_binary_data<T> x)
-{
-  return os.write(x.ptr, sizeof(T));
-}
-
-template <class T>
-inline std::ostream& operator<<(std::ostream& os, detail::binary_data<T> x)
-{
-  return os.write(x.ptr, sizeof(T));
-}
-
-template <class T>
-inline std::istream& operator>>(std::istream& is, detail::binary_data<T> x)
-{
-  return is.read(x.ptr, sizeof(T));
-}
-
-}  // namespace boost
-
-#endif  // BOOST_BINARY_STREAM_HPP
+#endif  //BINARY_STREAM_HPP

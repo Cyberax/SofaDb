@@ -26,6 +26,8 @@
   #endif
 #endif
 
-#include "boost/shared_ptr.hpp"
+#include <boost/shared_ptr.hpp>
+#include <string>
+#include <vector>
 
 #endif // COMMON_H

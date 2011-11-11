@@ -3,6 +3,7 @@ PROJECT(libsofadb)
 FILE(GLOB libsofadb_SRCS
 	engine.cpp
 	erlang_compat.cpp
+	vlint.cpp
 )
 
 FILE(GLOB libsofadb_INCLUDES
@@ -10,6 +11,7 @@ FILE(GLOB libsofadb_INCLUDES
 	common.h
 	engine.h
 	erlang_compat.h
+	vlint.h
 )
 
 INCLUDE_DIRECTORIES(.)
