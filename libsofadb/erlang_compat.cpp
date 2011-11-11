@@ -46,7 +46,7 @@ struct term_to_binary_visitor : public boost::static_visitor<>
 		out->write(buf, 31);
 	}
 
-	void operator()(const integer_t &i) const
+	void operator()(const vlint &i) const
 	{
 	}
 

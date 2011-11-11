@@ -37,78 +37,78 @@
 class vlint
 {
 public:
-    typedef boost::uint16_t digit_type;
+	typedef boost::uint16_t digit_type;
 
 private:
-    typedef boost::uint32_t double_digit_type;
-    typedef std::vector<digit_type> magnitude_type;
-    typedef magnitude_type::size_type size_type;
+	typedef boost::uint32_t double_digit_type;
+	typedef std::vector<digit_type> magnitude_type;
+	typedef magnitude_type::size_type size_type;
 
 public:
-    vlint();
-    vlint(digit_type d, bool negative = false);
-    vlint(digit_type d[], std::size_t s, bool negative = false);
-    vlint(const std::string &decimal);
+	vlint();
+	vlint(digit_type d, bool negative = false);
+	vlint(digit_type d[], std::size_t s, bool negative = false);
+	vlint(const std::string &decimal);
 
-    vlint& operator+=(const vlint &other);
-    vlint& operator-=(const vlint &other);
-    vlint& operator*=(const vlint &other);
-    vlint& operator/=(const vlint &other);
-    vlint& operator%=(const vlint &other);
-    vlint& operator<<=(std::size_t bits);
-    vlint& operator>>=(std::size_t bits);
-    vlint& operator++();
-    vlint  operator++(int);
-    vlint& operator--();
-    vlint  operator--(int);
+	vlint& operator+=(const vlint &other);
+	vlint& operator-=(const vlint &other);
+	vlint& operator*=(const vlint &other);
+	vlint& operator/=(const vlint &other);
+	vlint& operator%=(const vlint &other);
+	vlint& operator<<=(std::size_t bits);
+	vlint& operator>>=(std::size_t bits);
+	vlint& operator++();
+	vlint  operator++(int);
+	vlint& operator--();
+	vlint  operator--(int);
 
-    bool less_than(const vlint &v) const;
-    bool equal_to(const vlint &v) const;
-    bool zero() const;
-    bool positive() const;
-    bool negative() const;
+	bool less_than(const vlint &v) const;
+	bool equal_to(const vlint &v) const;
+	bool zero() const;
+	bool positive() const;
+	bool negative() const;
 
-    std::string to_string() const;
+	std::string to_string() const;
 
-    vlint add(const vlint &other) const;
-    vlint subtract(const vlint &other) const;
-    vlint multiply(const vlint &other) const;
-    vlint divide(const vlint &other) const;
-    vlint modulo(const vlint &other) const;
-    vlint shift_left(std::size_t bits) const;
-    vlint shift_right(std::size_t bits) const;
+	vlint add(const vlint &other) const;
+	vlint subtract(const vlint &other) const;
+	vlint multiply(const vlint &other) const;
+	vlint divide(const vlint &other) const;
+	vlint modulo(const vlint &other) const;
+	vlint shift_left(std::size_t bits) const;
+	vlint shift_right(std::size_t bits) const;
 
 private:
-    enum sign_group {
-        negative_values,
-        thezero,
-        positive_values
-    };
+	enum sign_group {
+		negative_values,
+		thezero,
+		positive_values
+	};
 
-    static magnitude_type add_core(const magnitude_type &u, const magnitude_type &v);
-    static magnitude_type subtract_core(const magnitude_type &u, const magnitude_type &v);
-    static magnitude_type multiply_core(const magnitude_type &u, const magnitude_type &v);
-    friend struct division_core;
-    static void shift_left_core(magnitude_type &w, std::size_t bits);
-    static void shift_right_core(magnitude_type &w, std::size_t bits);
+	static magnitude_type add_core(const magnitude_type &u, const magnitude_type &v);
+	static magnitude_type subtract_core(const magnitude_type &u, const magnitude_type &v);
+	static magnitude_type multiply_core(const magnitude_type &u, const magnitude_type &v);
+	friend struct division_core;
+	static void shift_left_core(magnitude_type &w, std::size_t bits);
+	static void shift_right_core(magnitude_type &w, std::size_t bits);
 
-    static void remove_leading_zeros(magnitude_type &w);
+	static void remove_leading_zeros(magnitude_type &w);
 
-    void make_zero();
-    void check_zero();
-    bool magnitude_one() const;
-    bool magnitude_less_than(const vlint &v) const;
-    bool magnitude_equal_to(const vlint &v) const;
+	void make_zero();
+	void check_zero();
+	bool magnitude_one() const;
+	bool magnitude_less_than(const vlint &v) const;
+	bool magnitude_equal_to(const vlint &v) const;
 
-    static const double_digit_type k_base;
-    static const std::size_t k_bits_per_digit;
-    static const digit_type k_power_of_10;
+	static const double_digit_type k_base;
+	static const std::size_t k_bits_per_digit;
+	static const digit_type k_power_of_10;
 
-    sign_group sign_;
-    magnitude_type magnitude_;
+	sign_group sign_;
+	magnitude_type magnitude_;
 
 #ifdef RUNNING_TESTS
-    friend class vlint_test;
+	friend class vlint_test;
 #endif
 };
 

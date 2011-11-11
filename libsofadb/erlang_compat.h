@@ -7,17 +7,26 @@
 #include <boost/variant.hpp>
 #include <boost/shared_array.hpp>
 
+#include "vlint.h"
 #include "binary_stream.hpp"
 
 #define VERSION_MAGIC 131
+
 #define NIL_EXT (106)
 #define ATOM_EXT (100)
 #define FLOAT_EXT (99)
 #define STRING_EXT (107)
+
 #define MAX_STRING_LEN 0xffff
 #define LIST_EXT (108)
+
 #define SMALL_TUPLE_EXT (104)
 #define LARGE_TUPLE_EXT (105)
+
+#define SMALL_INTEGER_EXT (97)
+#define INTEGER_EXT (98)
+#define SMALL_BIG_EXT (110)
+#define LARGE_BIG_EXT (111)
 
 namespace erlang {
 
@@ -42,7 +51,7 @@ namespace erlang {
 		erl_nil_t,
 		atom_t,
 		double,
-		integer_t,
+		vlint,
 		std::string,
 		list_ptr_t,
 		tuple_ptr_t
