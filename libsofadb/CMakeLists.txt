@@ -2,11 +2,14 @@ PROJECT(libsofadb)
 
 FILE(GLOB libsofadb_SRCS
 	engine.cpp
+	erlang_compat.cpp
 )
 
 FILE(GLOB libsofadb_INCLUDES
+	binary_stream.hpp
 	common.h
 	engine.h
+	erlang_compat.h
 )
 
 INCLUDE_DIRECTORIES(.)

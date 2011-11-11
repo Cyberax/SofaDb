@@ -22,6 +22,10 @@ namespace sofadb {
 	};
 	typedef std::map<std::string, InlineAttachment> attachment_map_t;
 
+	class RevisionInfo
+	{
+	};
+
 	class DocumentRevision
 	{
 		DbEngine *engine_;
@@ -32,6 +36,7 @@ namespace sofadb {
 
 		std::list<std::string> conflicts_;
 		std::list<std::string> deleted_conflicts_;
+		std::list<RevisionInfo> _revs_info;
 	};
 
 	class DbEngine
