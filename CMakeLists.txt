@@ -49,7 +49,7 @@ ELSE()
 ENDIF()
 
 FIND_PACKAGE(LevelDb REQUIRED)
-FIND_PACKAGE(Boost 1.46 COMPONENTS thread regex date_time unit_test_framework)
+FIND_PACKAGE(Boost 1.42 COMPONENTS thread regex date_time unit_test_framework)
 
 CONFIGURE_FILE(
   "cmake/config.h.in"
@@ -58,6 +58,7 @@ CONFIGURE_FILE(
 INCLUDE_DIRECTORIES(${PROJECT_BINARY_DIR}/include)
 
 ADD_SUBDIRECTORY(json_spirit)
+ADD_SUBDIRECTORY(bigint)
 ADD_SUBDIRECTORY(libsofadb)
 ADD_SUBDIRECTORY(example)
 ADD_SUBDIRECTORY(test)

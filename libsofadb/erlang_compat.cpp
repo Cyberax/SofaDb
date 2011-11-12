@@ -46,8 +46,13 @@ struct term_to_binary_visitor : public boost::static_visitor<>
 		out->write(buf, 31);
 	}
 
-	void operator()(const vlint &i) const
+	void operator()(const BigInteger &i) const
 	{
+		if (i<=UCHAR_MAX)
+		{
+			out->write_byte(SMALL_INTEGER_EXT);
+			//out->write_byte(i.);
+		}
 	}
 
 	void operator()(const std::string &str) const
@@ -96,8 +101,7 @@ struct term_to_binary_visitor : public boost::static_visitor<>
 		if (ptr->elements_.size()<=0xFF)
 		{
 			out->write_byte(SMALL_TUPLE_EXT);
-			out->write_byte(
-						static_cast<unsigned char>(ptr->elements_.size()));
+			out->write_byte(static_cast<unsigned char>(ptr->elements_.size()));
 		} else
 		{
 			out->write_byte(LARGE_TUPLE_EXT);

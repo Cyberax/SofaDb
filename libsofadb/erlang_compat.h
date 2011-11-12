@@ -7,7 +7,7 @@
 #include <boost/variant.hpp>
 #include <boost/shared_array.hpp>
 
-#include "vlint.h"
+#include "BigInteger.hh"
 #include "binary_stream.hpp"
 
 #define VERSION_MAGIC 131
@@ -51,7 +51,7 @@ namespace erlang {
 		erl_nil_t,
 		atom_t,
 		double,
-		vlint,
+		BigInteger,
 		std::string,
 		list_ptr_t,
 		tuple_ptr_t
