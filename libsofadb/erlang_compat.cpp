@@ -48,10 +48,38 @@ struct term_to_binary_visitor : public boost::static_visitor<>
 
 	void operator()(const BigInteger &i) const
 	{
-		if (i<=UCHAR_MAX)
+		if (i<=UCHAR_MAX && i>=0)
 		{
 			out->write_byte(SMALL_INTEGER_EXT);
-			//out->write_byte(i.);
+			out->write_byte(static_cast<char>(i.toShort()));
+			return;
+		}
+
+		if (i<=INT_MAX && i>=INT_MIN)
+		{
+			out->write_byte(INTEGER_EXT);
+			out->write_int4(htonl(i.toInt()));
+			return;
+		}
+
+		if (i.getLength()<=UCHAR_MAX)
+		{
+			out->write_byte(SMALL_BIG_EXT);
+			out->write_byte(i.getSign()==BigInteger::negative ? 1:0);
+			out->write_byte(i.getLength());
+		} else
+		{
+			out->write_byte(LARGE_BIG_EXT);
+			out->write_byte(i.getSign()==BigInteger::negative ? 1:0);
+			out->write_int4(i.getLength());
+		}
+		//Output data
+		BigUnsigned magnitude=i.getMagnitude();
+		while(magnitude>0)
+		{
+			unsigned char cur_val=(magnitude%256).toInt();
+			out->write_byte(cur_val);
+			magnitude >>= 8;
 		}
 	}
 
@@ -119,10 +147,4 @@ void erlang::term_to_binary(const erl_type_t &term, utils::output_stream *out)
 	term_to_binary_visitor visitor;
 	visitor.out = out;
 	term.apply_visitor(visitor);
-}
-
-int test()
-{
-	erl_type_t tst;
-	tst = std::string("Hello, world");
 }

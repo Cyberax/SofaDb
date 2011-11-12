@@ -127,6 +127,7 @@ X BigInteger::convertToSignedPrimitive() const {
 unsigned long  BigInteger::toUnsignedLong () const { return convertToUnsignedPrimitive<unsigned long >       (); }
 unsigned int   BigInteger::toUnsignedInt  () const { return convertToUnsignedPrimitive<unsigned int  >       (); }
 unsigned short BigInteger::toUnsignedShort() const { return convertToUnsignedPrimitive<unsigned short>       (); }
+unsigned char  BigInteger::toUnsignedChar () const { return convertToUnsignedPrimitive<unsigned char >       (); }
 long           BigInteger::toLong         () const { return convertToSignedPrimitive  <long , unsigned long> (); }
 int            BigInteger::toInt          () const { return convertToSignedPrimitive  <int  , unsigned int>  (); }
 short          BigInteger::toShort        () const { return convertToSignedPrimitive  <short, unsigned short>(); }

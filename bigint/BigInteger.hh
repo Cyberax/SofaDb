@@ -70,6 +70,7 @@ public:
 	int            toInt          () const;
 	unsigned short toUnsignedShort() const;
 	short          toShort        () const;
+	unsigned char  toUnsignedChar () const;
 protected:
 	// Helper
 	template <class X> X convertToUnsignedPrimitive() const;
