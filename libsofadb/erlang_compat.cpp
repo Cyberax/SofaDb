@@ -1,10 +1,12 @@
 #include "erlang_compat.h"
 #include <boost/make_shared.hpp>
+#include <boost/cast.hpp>
 #include <vector>
 #include <streambuf>
 #include <assert.h>
 #include <limits.h>
 
+using boost::numeric_cast;
 using namespace erlang;
 using namespace utils;
 
@@ -119,7 +121,7 @@ struct term_to_binary_visitor : public boost::static_visitor<>
 	{
 		assert(ptr);
 
-		size_t list_size = 1;
+		size_t list_size = 0;
 		list_ptr_t cur=ptr;
 		while(cur)
 		{
@@ -128,11 +130,9 @@ struct term_to_binary_visitor : public boost::static_visitor<>
 		}
 
 		out->write_byte(LIST_EXT);
-		if ((list_size-1)>=UINT_MAX)
-			throw std::out_of_range("String is way too big");
 		//Do not count the last element - it's always present and is treated
 		//specially in the wire format.
-		out->write_int4(list_size-1);
+		out->write_int4(numeric_cast<uint32_t>(list_size-1));
 
 		cur=ptr;
 		while(cur)
@@ -147,11 +147,11 @@ struct term_to_binary_visitor : public boost::static_visitor<>
 		if (ptr->elements_.size()<=0xFF)
 		{
 			out->write_byte(SMALL_TUPLE_EXT);
-			out->write_byte(static_cast<unsigned char>(ptr->elements_.size()));
+			out->write_byte(numeric_cast<unsigned char>(ptr->elements_.size()));
 		} else
 		{
 			out->write_byte(LARGE_TUPLE_EXT);
-			out->write_int4(static_cast<uint32_t>(ptr->elements_.size()));
+			out->write_int4(numeric_cast<uint32_t>(ptr->elements_.size()));
 		}
 		for(auto iter=ptr->elements_.begin();
 			iter!=ptr->elements_.end(); ++iter)
