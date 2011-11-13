@@ -16,8 +16,7 @@
 #define ATOM_EXT (100)
 #define FLOAT_EXT (99)
 #define STRING_EXT (107)
-
-#define MAX_STRING_LEN 0xffff
+#define MAX_STRING_LEN (0xffff-1)
 #define LIST_EXT (108)
 
 #define SMALL_TUPLE_EXT (104)
@@ -25,6 +24,8 @@
 
 #define SMALL_INTEGER_EXT (97)
 #define INTEGER_EXT (98)
+#define ERLANG_INT_MIN (-134217728)
+#define ERLANG_INT_MAX (134217727)
 #define SMALL_BIG_EXT (110)
 #define LARGE_BIG_EXT (111)
 

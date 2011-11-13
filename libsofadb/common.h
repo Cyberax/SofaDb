@@ -29,5 +29,6 @@
 #include <boost/shared_ptr.hpp>
 #include <string>
 #include <vector>
+#include <stdexcept>
 
 #endif // COMMON_H

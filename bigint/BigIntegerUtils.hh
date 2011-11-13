@@ -10,21 +10,21 @@
  * - std::ostream << operators for BigUnsigned/BigInteger */
 
 // std::string conversion routines.  Base 10 only.
-BIGINT_PUBLIC std::string bigUnsignedToString(const BigUnsigned &x);
-BIGINT_PUBLIC std::string bigIntegerToString(const BigInteger &x);
-BIGINT_PUBLIC BigUnsigned stringToBigUnsigned(const std::string &s);
-BIGINT_PUBLIC BigInteger stringToBigInteger(const std::string &s);
+extern BIGINT_PUBLIC std::string bigUnsignedToString(const BigUnsigned &x);
+extern BIGINT_PUBLIC std::string bigIntegerToString(const BigInteger &x);
+extern BIGINT_PUBLIC BigUnsigned stringToBigUnsigned(const std::string &s);
+extern BIGINT_PUBLIC BigInteger stringToBigInteger(const std::string &s);
 
 // Creates a BigInteger from data such as `char's; read below for details.
 template <class T>
 BigInteger dataToBigInteger(const T* data, BigInteger::Index length, BigInteger::Sign sign);
 
 // Outputs x to os, obeying the flags `dec', `hex', `bin', and `showbase'.
-BIGINT_PUBLIC std::ostream &operator <<(std::ostream &os, const BigUnsigned &x);
+std::ostream BIGINT_PUBLIC &operator <<(std::ostream &os, const BigUnsigned &x);
 
 // Outputs x to os, obeying the flags `dec', `hex', `bin', and `showbase'.
 // My somewhat arbitrary policy: a negative sign comes before a base indicator (like -0xFF).
-BIGINT_PUBLIC std::ostream &operator <<(std::ostream &os, const BigInteger &x);
+std::ostream BIGINT_PUBLIC  &operator <<(std::ostream &os, const BigInteger &x);
 
 // BEGIN TEMPLATE DEFINITIONS.
 

@@ -33,7 +33,9 @@ struct term_to_binary_visitor : public boost::static_visitor<>
 	{
 		out->write_byte(ATOM_EXT);
 		const size_t sz=i.name_.size();
-		assert(sz<=255);
+		if (sz>255)
+			throw std::out_of_range("Atom is too long: "+
+									i.name_.substr(0,20)+"...");
 		out->write_int2(sz);
 		out->write(i.name_.data(), sz);
 	}
@@ -55,23 +57,29 @@ struct term_to_binary_visitor : public boost::static_visitor<>
 			return;
 		}
 
-		if (i<=INT_MAX && i>=INT_MIN)
+		if (i>=ERLANG_INT_MIN && i<=ERLANG_INT_MAX)
 		{
 			out->write_byte(INTEGER_EXT);
-			out->write_int4(htonl(i.toInt()));
+			out->write_int4(i.toInt());
 			return;
 		}
 
-		if (i.getLength()<=UCHAR_MAX)
+		unsigned int bits=i.getMagnitude().bitLength();
+		if (bits>=INT_MAX)
+			throw std::out_of_range("Big number is way too big");
+		unsigned int bytes = (bits+7)/8; //No overflow is possible here
+		assert(bytes>0); //Zero is handled earlier
+
+		if (bytes<=UCHAR_MAX)
 		{
 			out->write_byte(SMALL_BIG_EXT);
+			out->write_byte(bytes);
 			out->write_byte(i.getSign()==BigInteger::negative ? 1:0);
-			out->write_byte(i.getLength());
 		} else
 		{
 			out->write_byte(LARGE_BIG_EXT);
+			out->write_int4(bytes);
 			out->write_byte(i.getSign()==BigInteger::negative ? 1:0);
-			out->write_int4(i.getLength());
 		}
 		//Output data
 		BigUnsigned magnitude=i.getMagnitude();
@@ -85,19 +93,25 @@ struct term_to_binary_visitor : public boost::static_visitor<>
 
 	void operator()(const std::string &str) const
 	{
-		if (str.size()>=MAX_STRING_LEN)
-		{
-			out->write_byte(LIST_EXT);
-			assert(str.size()<UINT_MAX);
-			out->write_int4(str.size());
-			out->write(str.data(), str.size());
-			out->write_byte(NIL_EXT);
-		} else
+		if (str.size()<=MAX_STRING_LEN)
 		{
 			out->write_byte(STRING_EXT);
 			assert(str.size()<USHRT_MAX);
 			out->write_int2(str.size());
 			out->write(str.data(), str.size());
+		} else
+		{
+			out->write_byte(LIST_EXT);
+			if (str.size()>=UINT_MAX)
+				throw std::out_of_range("String is way too big");
+
+			out->write_int4(str.size());
+			for(auto iter=str.begin();iter!=str.end();++iter)
+			{
+				erl_type_t val=BigInteger(*iter);
+				val.apply_visitor(*this);
+			}
+			out->write_byte(NIL_EXT);
 		}
 	}
 
@@ -114,6 +128,10 @@ struct term_to_binary_visitor : public boost::static_visitor<>
 		}
 
 		out->write_byte(LIST_EXT);
+		if ((list_size-1)>=UINT_MAX)
+			throw std::out_of_range("String is way too big");
+		//Do not count the last element - it's always present and is treated
+		//specially in the wire format.
 		out->write_int4(list_size-1);
 
 		cur=ptr;

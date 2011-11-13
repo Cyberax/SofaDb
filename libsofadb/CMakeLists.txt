@@ -22,11 +22,12 @@ ADD_DEFINITIONS(-DLIBSOFADB_EXPORTS)
 ADD_LIBRARY(libsofadb SHARED ${libsofadb_SRCS} ${libsofadb_INCLUDES})
 SET_TARGET_PROPERTIES(libsofadb PROPERTIES OUTPUT_NAME "sofadb")
 
-TARGET_LINK_LIBRARIES(libsofadb ${LevelDb_LIBRARY}
-	json_spirit bigint)
+TARGET_LINK_LIBRARIES(libsofadb)
+# ${LevelDb_LIBRARY}
+#	json_spirit)# bigint)
 
-#TARGET_LINK_LIBRARIES(libsofadb -Wl,-whole-archive
-#	${bigint_LIBRARY} ${json_spirit_library} -Wl,-no-whole-archive)
+TARGET_LINK_LIBRARIES(libsofadb -Wl,-whole-archive
+	${LevelDb_LIBRARY} json_spirit bigint -Wl,-no-whole-archive)
 
 # We must not re-export static libraries
 SET_TARGET_PROPERTIES(libsofadb PROPERTIES LINK_INTERFACE_LIBRARIES "pthread")

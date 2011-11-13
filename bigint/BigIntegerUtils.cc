@@ -5,7 +5,7 @@ std::string bigUnsignedToString(const BigUnsigned &x) {
 	return std::string(BigUnsignedInABase(x, 10));
 }
 
-std::string bigIntegerToString(const BigInteger &x) {
+std::string BIGINT_PUBLIC bigIntegerToString(const BigInteger &x) {
 	return (x.getSign() == BigInteger::negative)
 		? (std::string("-") + bigUnsignedToString(x.getMagnitude()))
 		: (bigUnsignedToString(x.getMagnitude()));
