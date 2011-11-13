@@ -38,7 +38,7 @@ struct term_to_binary_visitor : public boost::static_visitor<>
 		if (sz>255)
 			throw std::out_of_range("Atom is too long: "+
 									i.name_.substr(0,20)+"...");
-		out->write_int2(sz);
+		out->write_uint2(sz);
 		out->write(i.name_.data(), sz);
 	}
 
@@ -55,14 +55,14 @@ struct term_to_binary_visitor : public boost::static_visitor<>
 		if (i<=UCHAR_MAX && i>=0)
 		{
 			out->write_byte(SMALL_INTEGER_EXT);
-			out->write_byte(static_cast<char>(i.toShort()));
+			out->write_byte(i.toUnsignedChar());
 			return;
 		}
 
 		if (i>=ERLANG_INT_MIN && i<=ERLANG_INT_MAX)
 		{
 			out->write_byte(INTEGER_EXT);
-			out->write_int4(i.toInt());
+			out->write_sint4(i.toInt());
 			return;
 		}
 
@@ -80,7 +80,7 @@ struct term_to_binary_visitor : public boost::static_visitor<>
 		} else
 		{
 			out->write_byte(LARGE_BIG_EXT);
-			out->write_int4(bytes);
+			out->write_uint4(bytes);
 			out->write_byte(i.getSign()==BigInteger::negative ? 1:0);
 		}
 		//Output data
@@ -99,15 +99,12 @@ struct term_to_binary_visitor : public boost::static_visitor<>
 		{
 			out->write_byte(STRING_EXT);
 			assert(str.size()<USHRT_MAX);
-			out->write_int2(str.size());
+			out->write_uint2(str.size());
 			out->write(str.data(), str.size());
 		} else
 		{
 			out->write_byte(LIST_EXT);
-			if (str.size()>=UINT_MAX)
-				throw std::out_of_range("String is way too big");
-
-			out->write_int4(str.size());
+			out->write_uint4(str.size());
 			for(auto iter=str.begin();iter!=str.end();++iter)
 			{
 				erl_type_t val=BigInteger(*iter);
@@ -132,7 +129,7 @@ struct term_to_binary_visitor : public boost::static_visitor<>
 		out->write_byte(LIST_EXT);
 		//Do not count the last element - it's always present and is treated
 		//specially in the wire format.
-		out->write_int4(numeric_cast<uint32_t>(list_size-1));
+		out->write_uint4(numeric_cast<uint32_t>(list_size-1));
 
 		cur=ptr;
 		while(cur)
@@ -151,7 +148,7 @@ struct term_to_binary_visitor : public boost::static_visitor<>
 		} else
 		{
 			out->write_byte(LARGE_TUPLE_EXT);
-			out->write_int4(numeric_cast<uint32_t>(ptr->elements_.size()));
+			out->write_uint4(numeric_cast<uint32_t>(ptr->elements_.size()));
 		}
 		for(auto iter=ptr->elements_.begin();
 			iter!=ptr->elements_.end(); ++iter)
