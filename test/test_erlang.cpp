@@ -302,3 +302,38 @@ BOOST_AUTO_TEST_CASE(test_tuple_big)
 				99,97,99,97,99,97,99,97,99,97,99,97,99,97,99,97,99,97,
 				99,97,99,97,99,97,99,97,99,97,99,97,99}));
 }
+
+BOOST_AUTO_TEST_CASE(test_empty_doc)
+{
+	list_ptr_t lst(new list_t());
+	atom_t atom={"false"};
+	lst->val_=atom;
+
+	list_ptr_t lst2(new list_t());
+	lst2->val_=BigInteger(0);
+	lst->next_=lst2;
+
+	list_ptr_t lst3(new list_t());
+	lst3->val_=BigInteger(0);
+	lst2->next_=lst3;
+
+	tuple_ptr_t tpl(new tuple_t());
+	tpl->elements_.push_back(erl_nil_t());
+
+	list_ptr_t lst4(new list_t());
+	lst4->val_=tpl;
+	lst3->next_=lst4;
+
+	list_ptr_t lst5(new list_t());
+	lst5->val_=erl_nil_t();
+	lst4->next_=lst5;
+
+	list_ptr_t lst6(new list_t());
+	lst6->val_=erl_nil_t();
+	lst5->next_=lst6;
+
+	//rp(term_to_binary([false, 0, 0, {[]}, []])).
+	CHECK(test(lst),
+		  buf_t({131,108,0,0,0,5,100,0,5,102,97,108,115,101,97,0,97,0,
+				104,1,106,106,106}));
+}
