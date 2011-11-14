@@ -6,6 +6,7 @@
 #include <boost/type_traits.hpp>
 #include <boost/variant.hpp>
 #include <boost/shared_array.hpp>
+#include <boost/enable_shared_from_this.hpp>
 
 #include "BigInteger.hh"
 #include "binary_stream.hpp"
@@ -41,7 +42,10 @@ namespace erlang {
 		std::string digits_;
 	};
 
-	struct erl_nil_t {};
+	struct erl_nil_t
+	{
+	};
+
 	struct list_t;
 	typedef boost::shared_ptr<list_t> list_ptr_t;
 
@@ -58,7 +62,7 @@ namespace erlang {
 		tuple_ptr_t
 		> erl_type_t;
 
-	struct list_t
+	struct list_t : public boost::enable_shared_from_this<list_t>
 	{
 		list_ptr_t next_;
 		erl_type_t val_;
@@ -72,13 +76,19 @@ namespace erlang {
 		std::vector<erl_type_t> elements_;
 	};
 
+	SOFADB_PUBLIC bool deep_eq (const erl_type_t &l, const erl_type_t &r);
+	bool deep_ne(const erl_type_t &l, const erl_type_t &r)
+	{
+		return !deep_eq(l, r);
+	}
+
 	//Implements Erlang's term_to_binary functionality. Its
 	//format is specified here:
 	// http://www.erlang.org/doc/apps/erts/erl_ext_dist.html
 	//and is implemented in otp_src/erts/emulator/beam/external.c
 	//in the OTP source.
 	SOFADB_PUBLIC void term_to_binary(const erl_type_t &term, utils::output_stream *out);
-
+	SOFADB_PUBLIC erl_type_t binary_to_term(utils::input_stream *in);
 }; //namespace erlang
 
 #endif // ERLANG_COMPAT_H

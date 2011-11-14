@@ -62,6 +62,70 @@ namespace utils {
 		}
 	};
 
+	class input_stream
+	{
+	public:
+		virtual ~input_stream() {};
+		virtual void read(void *data, size_t bytes)=0;
+
+		uint8_t read_byte()
+		{
+			uint8_t res;
+			read(&res, 1);
+			return res;
+		}
+
+		uint16_t read_uint2()
+		{
+			uint16_t res;
+			read(&res, 2);
+			return ntohs(res);
+		}
+
+		int16_t read_sint2()
+		{
+			return static_cast<int16_t>(read_uint2());
+		}
+
+		uint32_t read_uint4()
+		{
+			uint32_t res;
+			read(&res, 4);
+			return ntohl(res);
+		}
+
+		int32_t read_sint4()
+		{
+			return static_cast<int32_t>(read_uint4());
+		}
+	};
+
+	class buf_input_stream : public input_stream
+	{
+		typedef std::vector<unsigned char> buf_t;
+	public:
+		buf_t buffer;
+		buf_t::const_iterator pos;
+
+		buf_input_stream()
+		{
+			pos=buf_t::const_iterator();
+		}
+
+		void read(void *data, size_t bytes)
+		{
+			if (pos==buf_t::const_iterator())
+				pos=buffer.begin();
+
+			if (buffer.end()-pos < bytes)
+				throw std::out_of_range("Premature end of buffer");
+
+			std::copy(pos, pos+bytes, static_cast<char*>(data));
+			pos += bytes;
+		}
+	};
+
+
 }  // namespace utils
 
 #endif  //BINARY_STREAM_HPP

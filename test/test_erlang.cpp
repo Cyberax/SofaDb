@@ -18,6 +18,12 @@ buf_stream test(const erl_type_t & erl)
 {
 	buf_stream out;
 	term_to_binary(erl, &out);
+
+	buf_input_stream inp;
+	inp.buffer=out.buffer;
+	erl_type_t in=binary_to_term(&inp);
+	BOOST_REQUIRE(deep_eq(in, erl));
+
 	return out;
 }
 
