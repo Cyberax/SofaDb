@@ -22,7 +22,7 @@ ADD_DEFINITIONS(-DLIBSOFADB_EXPORTS)
 ADD_LIBRARY(libsofadb SHARED ${libsofadb_SRCS} ${libsofadb_INCLUDES})
 SET_TARGET_PROPERTIES(libsofadb PROPERTIES OUTPUT_NAME "sofadb")
 
-TARGET_LINK_LIBRARIES(libsofadb)
+TARGET_LINK_LIBRARIES(libsofadb crypto)
 # ${LevelDb_LIBRARY}
 #	json_spirit)# bigint)
 
