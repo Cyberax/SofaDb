@@ -77,7 +77,7 @@ namespace erlang {
 	};
 
 	SOFADB_PUBLIC bool deep_eq (const erl_type_t &l, const erl_type_t &r);
-	bool deep_ne(const erl_type_t &l, const erl_type_t &r)
+	inline bool deep_ne(const erl_type_t &l, const erl_type_t &r)
 	{
 		return !deep_eq(l, r);
 	}

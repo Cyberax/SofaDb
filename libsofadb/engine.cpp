@@ -1,10 +1,16 @@
 #include "engine.h"
 #include "leveldb/db.h"
+#include "json_spirit_utils.h"
 #include <openssl/md5.h>
 #include <boost/array.hpp>
+#include <time.h>
+#include "erlang_compat.h"
 
 using namespace sofadb;
 using namespace leveldb;
+using namespace erlang;
+
+const std::string DbEngine::SYSTEM_DB("_sys");
 
 void calculate_hash(std::string str, boost::array<uint8_t, 16> &res)
 {
@@ -30,4 +36,58 @@ DbEngine::DbEngine(const std::string &&filename)
 DbEngine::~DbEngine()
 {
 
+}
+
+DatabaseInfo::DatabaseInfo(const json_spirit::Object &json)
+{
+	name_=json_spirit::get(json, "name").get_str();
+	created_on_=json_spirit::get(json, "created_on").get_int();
+}
+
+json_spirit::Object DatabaseInfo::to_json() const
+{
+	json_spirit::Object	res;
+	res.push_back(json_spirit::Pair("name", name_));
+	res.push_back(json_spirit::Pair("created_on",
+									json_spirit::Value((int)created_on_)));
+	return res;
+}
+
+DatabaseInfo DbEngine::create_a_database(const std::string &name)
+{
+	guard_t g(mutex_);
+
+	auto pos=databases_.find(name);
+	if (pos!=databases_.end())
+		return pos->second;
+
+	ReadOptions opts;
+	std::string db_info=SYSTEM_DB+"/"+name+DB_SEPARATOR+"dbinfo";
+
+	std::string out;
+	if (keystore_->Get(opts, db_info, &out).ok())
+	{
+		json_spirit::Value val;
+		json_spirit::read_or_throw(out, val);
+		DatabaseInfo res(val.get_obj());
+		databases_[name]=res;
+		return res;
+	} else
+	{
+		WriteOptions w;
+
+		DatabaseInfo res;
+		res.created_on_=time(NULL);
+		res.name_=name;
+
+		std::string jval(json_spirit::write_formatted(res.to_json()));
+		keystore_->Put(w, db_info, jval);
+
+		databases_[name]=res;
+		return res;
+	}
+}
+
+void DbEngine::checkpoint()
+{
 }
