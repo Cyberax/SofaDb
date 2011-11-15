@@ -7,7 +7,6 @@
 #include <map>
 #include <set>
 #include <boost/optional.hpp>
-#include <mutex>
 
 namespace leveldb {
 	class DB;
@@ -76,20 +75,28 @@ namespace sofadb {
 		boost::optional<RevisionInfo> rev_;
 	};
 
-	struct DatabaseInfo
+	class Database
 	{
+		std::recursive_mutex mutex_;
+
+		bool closed_;
 		time_t created_on_;
 		std::string name_;
 
-		DatabaseInfo() : created_on_(), name_() {}
-		DatabaseInfo(const json_spirit::Object &json);
+		Database(time_t created_on, const std::string &name)
+			: created_on_(created_on), name_(name) {}
+		Database(const json_spirit::Object &json);
+
+		friend class DbEngine;
+	public:
 		json_spirit::Object to_json() const;
 
-		bool operator == (const DatabaseInfo &other) const
+		bool operator == (const Database &other) const
 		{
 			return created_on_==other.created_on_ && other.name_==name_;
 		}
 	};
+	typedef boost::shared_ptr<Database> database_ptr;
 
 	class DbEngine
 	{
@@ -97,16 +104,15 @@ namespace sofadb {
 		const static char DB_SEPARATOR='!';
 
 		leveldb::db_ptr_t keystore_;
-		std::map<std::string, DatabaseInfo> databases_;
+		std::map<std::string, database_ptr> databases_;
 		std::recursive_mutex mutex_;
-		typedef std::lock_guard<std::recursive_mutex> guard_t;
 
 	public:
 		SOFADB_PUBLIC DbEngine(const std::string &&filename);
 		SOFADB_PUBLIC virtual ~DbEngine();
 
 		SOFADB_PUBLIC void checkpoint();
-		SOFADB_PUBLIC DatabaseInfo create_a_database(const std::string &name);
+		SOFADB_PUBLIC database_ptr create_a_database(const std::string &name);
 	};
 };
 

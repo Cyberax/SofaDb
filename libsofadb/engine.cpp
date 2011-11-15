@@ -38,13 +38,13 @@ DbEngine::~DbEngine()
 
 }
 
-DatabaseInfo::DatabaseInfo(const json_spirit::Object &json)
+Database::Database(const json_spirit::Object &json)
 {
 	name_=json_spirit::get(json, "name").get_str();
 	created_on_=json_spirit::get(json, "created_on").get_int();
 }
 
-json_spirit::Object DatabaseInfo::to_json() const
+json_spirit::Object Database::to_json() const
 {
 	json_spirit::Object	res;
 	res.push_back(json_spirit::Pair("name", name_));
@@ -53,7 +53,7 @@ json_spirit::Object DatabaseInfo::to_json() const
 	return res;
 }
 
-DatabaseInfo DbEngine::create_a_database(const std::string &name)
+database_ptr DbEngine::create_a_database(const std::string &name)
 {
 	guard_t g(mutex_);
 
@@ -69,18 +69,16 @@ DatabaseInfo DbEngine::create_a_database(const std::string &name)
 	{
 		json_spirit::Value val;
 		json_spirit::read_or_throw(out, val);
-		DatabaseInfo res(val.get_obj());
+		database_ptr res(new Database(val.get_obj()));
 		databases_[name]=res;
 		return res;
 	} else
 	{
 		WriteOptions w;
 
-		DatabaseInfo res;
-		res.created_on_=time(NULL);
-		res.name_=name;
+		database_ptr res(new Database(time(NULL), name));
 
-		std::string jval(json_spirit::write_formatted(res.to_json()));
+		std::string jval(json_spirit::write_formatted(res->to_json()));
 		keystore_->Put(w, db_info, jval);
 
 		databases_[name]=res;

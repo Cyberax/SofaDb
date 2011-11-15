@@ -31,4 +31,7 @@
 #include <vector>
 #include <stdexcept>
 
+#include <mutex>
+typedef std::lock_guard<std::recursive_mutex> guard_t;
+
 #endif // COMMON_H
