@@ -5,6 +5,7 @@
 #include <boost/array.hpp>
 #include <time.h>
 #include "erlang_compat.h"
+#include "errors.h"
 
 using namespace sofadb;
 using namespace leveldb;

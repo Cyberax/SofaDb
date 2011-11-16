@@ -4,6 +4,7 @@ FILE(GLOB test_sofadb_SRCS
 	test_main.cpp
 	test_erlang.cpp
 	test_sofadb.cpp
+	test_utils.cpp
 )
 
 FILE(GLOB test_sofadb_INCLUDES
