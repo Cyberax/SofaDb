@@ -16,6 +16,8 @@ namespace leveldb {
 namespace sofadb {
 	class DbEngine;
 
+	typedef boost::optional<std::string> maybe_string_t;
+
 	class InlineAttachment
 	{
 		std::string name_, content_type_;
@@ -117,8 +119,17 @@ namespace sofadb {
 			return created_on_==other.created_on_ && other.name_==name_;
 		}
 
-		SOFADB_PUBLIC revision_ptr get_document(
-			const std::string &name, boost::optional<const std::string&> rev);
+		SOFADB_PUBLIC revision_ptr get(
+			const std::string &name, const maybe_string_t& rev);
+		SOFADB_PUBLIC revision_ptr put(
+			const std::string &name, const maybe_string_t& rev);
+		SOFADB_PUBLIC revision_ptr remove(
+			const std::string &name, const maybe_string_t& rev);
+		SOFADB_PUBLIC revision_ptr copy(
+			const std::string &name,
+			const maybe_string_t& rev,
+			const std::string &dest_name,
+			const maybe_string_t& dest_rev);
 	};
 	typedef boost::shared_ptr<Database> database_ptr;
 
