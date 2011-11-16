@@ -14,6 +14,8 @@ namespace leveldb {
 };
 
 namespace sofadb {
+	class DbEngine;
+
 	class InlineAttachment
 	{
 		std::string name_, content_type_;
@@ -74,27 +76,49 @@ namespace sofadb {
 		//revision
 		boost::optional<RevisionInfo> rev_;
 	};
+	typedef boost::shared_ptr<DocumentRevision> revision_ptr;
 
+	/**
+		Database has the following metadata present. Not everything is yet
+		implemented.
+		 {
+		"db_name": "test",
+		"doc_count":2,
+		"doc_del_count":2,
+		"update_seq":34,
+		"purge_seq":0,
+		"compact_running":false,
+		"disk_size":131163,
+		"instance_start_time":"1321264006959501",
+		"disk_format_version":5,
+		"committed_update_seq":34
+		}
+	*/
 	class Database
 	{
+		DbEngine *parent_;
 		std::recursive_mutex mutex_;
 
 		bool closed_;
 		time_t created_on_;
 		std::string name_;
 
-		Database(time_t created_on, const std::string &name)
-			: created_on_(created_on), name_(name) {}
-		Database(const json_spirit::Object &json);
+		Database(DbEngine *parent,
+				 time_t created_on, const std::string &name);
+		Database(DbEngine *parent,
+				 const json_spirit::Object &json);
 
 		friend class DbEngine;
 	public:
-		json_spirit::Object to_json() const;
+		SOFADB_PUBLIC json_spirit::Object to_json() const;
 
 		bool operator == (const Database &other) const
 		{
 			return created_on_==other.created_on_ && other.name_==name_;
 		}
+
+		SOFADB_PUBLIC revision_ptr get_document(
+			const std::string &name, boost::optional<const std::string&> rev);
 	};
 	typedef boost::shared_ptr<Database> database_ptr;
 
