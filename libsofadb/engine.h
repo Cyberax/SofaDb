@@ -120,30 +120,43 @@ namespace sofadb {
 		}
 
 		SOFADB_PUBLIC revision_ptr get(
-			const std::string &name, const maybe_string_t& rev);
+			const std::string &id, const maybe_string_t& rev);
 		SOFADB_PUBLIC revision_ptr put(
-			const std::string &name, const maybe_string_t& rev);
+			const std::string &id, const maybe_string_t& rev,
+			const std::string &doc_str, bool batched);
 		SOFADB_PUBLIC revision_ptr remove(
-			const std::string &name, const maybe_string_t& rev);
+			const std::string &id, const maybe_string_t& rev,
+			bool batched);
 		SOFADB_PUBLIC revision_ptr copy(
-			const std::string &name,
+			const std::string &id,
 			const maybe_string_t& rev,
-			const std::string &dest_name,
-			const maybe_string_t& dest_rev);
+			const std::string &dest_id,
+			const maybe_string_t& dest_rev,
+			bool batched);
+
+	private:
+		void check_closed();
 	};
 	typedef boost::shared_ptr<Database> database_ptr;
 
 	class DbEngine
 	{
+		friend class Database;
+
 		const static std::string SYSTEM_DB;
+		const static std::string DATA_DB;
 		const static char DB_SEPARATOR='!';
+		const static char REV_SEPARATOR=':';
 
 		leveldb::db_ptr_t keystore_;
+		bool temporary_;
+		std::string filename_;
+
 		std::map<std::string, database_ptr> databases_;
 		std::recursive_mutex mutex_;
 
 	public:
-		SOFADB_PUBLIC DbEngine(const std::string &&filename);
+		SOFADB_PUBLIC DbEngine(const std::string &filename, bool temporary);
 		SOFADB_PUBLIC virtual ~DbEngine();
 
 		SOFADB_PUBLIC void checkpoint();
