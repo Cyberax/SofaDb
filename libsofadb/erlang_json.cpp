@@ -24,7 +24,7 @@ static void * yajl_realloc_impl(void *ctx, void * ptr, unsigned int sz)
 	return realloc(ptr, sz);
 }
 
-static yajl_alloc_funcs funcs = {
+static yajl_alloc_funcs alloc_funcs = {
 	&yajl_malloc_impl,
 	&yajl_realloc_impl,
 	&yajl_free_impl,
@@ -213,7 +213,7 @@ erl_type_t erlang::parse_json(const std::string &str)
 	processor.tails_.push_back(head);
 
 	boost::shared_ptr<yajl_handle_t> hndl(
-				yajl_alloc(&json_callbacks, &config, &funcs, &processor),
+				yajl_alloc(&json_callbacks, &config, &alloc_funcs, &processor),
 				yajl_deleter());
 	yajl_status status=yajl_parse(hndl.get(),
 								  (const unsigned char*)str.c_str(),
@@ -223,11 +223,71 @@ erl_type_t erlang::parse_json(const std::string &str)
 	handle_status(hndl.get(), status2, str);
 
 	assert(processor.stack_.size()==1 && processor.tails_.size()==1);
-	std::cout << head->val_ << std::endl;
 	return head->val_;
 }
 
-std::string erlang::json_to_string(const erl_type_t &str)
+yajl_gen_config json_get_config = {1, "    "};
+
+struct printer_context
 {
-	return "";
+	std::string res_;
+};
+
+struct printer_deleter
+{
+	void operator ()(yajl_gen hndl)
+	{
+		yajl_gen_free(hndl);
+	}
+};
+
+void json_print(void * ctx, const char * str, unsigned int len)
+{
+	printer_context *prn = static_cast<printer_context*>(ctx);
+	prn->res_.append(str, len);
+}
+
+void check_status(yajl_gen_status st)
+{
+	if (st!=yajl_status_ok)
+		err(result_code_t::sError) << "Unepxected return code "<<
+									  st<<" from the JSON printer";
+}
+
+void print_list(boost::shared_ptr<yajl_gen_t> ptr, const erl_type_t &js)
+{
+	if (js.type()!=typeid(list_ptr_t))
+		err(result_code_t::sWrongRevision) << "Document is not well formed";
+	const list_ptr_t &lst=boost::get<list_ptr_t>(js);
+
+	check_status(yajl_gen_map_open(ptr.get()));
+	for(list_ptr_t cur=lst; !!cur; cur=cur->next_)
+	{
+		//This list should contain only tuples
+		if (cur->val_.type()!=typeid(tuple_ptr_t))
+			err(result_code_t::sError) << "Unexpected JSON structure, "
+										  "got "<<cur->val_.type().name()<<
+										  " while expecting a tuple";
+		const tuple_ptr_t &tp=boost::get<tuple_ptr_t>(cur->val_);
+		if (tp->elements_.size()!=2)
+			err(result_code_t::sError) << "Unexpected JSON structure, "
+										  "got "<<tp->elements_.size()<<
+										  " elements instead of 2";
+		yajl_o
+	}
+	check_status(yajl_gen_map_close(ptr.get()));
+}
+
+std::string erlang::json_to_string(const erl_type_t &js)
+{
+	printer_context ctx;
+	auto ptr=boost::shared_ptr<yajl_gen_t>(
+				yajl_gen_alloc2(&json_print, &json_get_config,
+								&alloc_funcs, &ctx),
+				printer_deleter());
+
+	print_list(ptr, js);
+
+	yajl_gen_clear(ptr.get());
+	return ctx.res_;
 }

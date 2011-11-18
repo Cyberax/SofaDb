@@ -137,6 +137,6 @@ revision_ptr Database::put(const std::string &id, const maybe_string_t& rev,
 	//parent_->keystore_->Get
 
 //	assert(false);
-	EZLOGGERSTREAM << "Reading " << docpath << std::endl;
+//	EZLOGGERSTREAM << "Reading " << docpath << std::endl;
 }
 

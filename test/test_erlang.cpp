@@ -350,9 +350,12 @@ BOOST_AUTO_TEST_CASE(test_binary)
 
 BOOST_AUTO_TEST_CASE(test_parse_json)
 {
-	parse_json("{\"Hello\" : \"world\", \"this\" : [\"is\",\"good\"], "
+	erl_type_t res=
+		parse_json("{\"Hello\" : \"world\", \"this\" : [\"is\",\"good\"], "
 			   "\"tst\" : [\"a\", {\"1\" : \"2\"}], "
 			   "\"val\" : true, "
 			   "\"larg\" : 233452340523409580923485092348523309850234950923450"
 			   "}");
+
+	std::cout << res << std::endl;
 }
