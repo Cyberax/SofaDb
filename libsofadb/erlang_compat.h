@@ -37,11 +37,6 @@ namespace erlang {
 		std::string name_;
 	};
 
-	struct integer_t
-	{
-		std::string digits_;
-	};
-
 	struct erl_nil_t
 	{
 	};
@@ -89,6 +84,10 @@ namespace erlang {
 	//in the OTP source.
 	SOFADB_PUBLIC void term_to_binary(const erl_type_t &term, utils::output_stream *out);
 	SOFADB_PUBLIC erl_type_t binary_to_term(utils::input_stream *in);
+
+	SOFADB_PUBLIC erl_type_t parse_json(const std::string &str);
+	SOFADB_PUBLIC std::string json_to_string(const erl_type_t &str);
+
 }; //namespace erlang
 
 #endif // ERLANG_COMPAT_H

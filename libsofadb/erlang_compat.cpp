@@ -371,8 +371,8 @@ struct SOFADB_LOCAL equality_visitor : public boost::static_visitor<>
 	{
 		//Aside: astute readers might have noticed that we're
 		//comparing two doubles here using == operator which is generally
-		//a big NO-NO. However, in this case we are interested in bit-perfect
-		//compatibility.
+		//a big NO-NO. However, in this case we are really
+		//interested in bit-perfect equality.
 		res_=i==boost::get<double>(r_);
 	}
 

@@ -3,6 +3,7 @@ PROJECT(libsofadb)
 FILE(GLOB libsofadb_SRCS
 	engine.cpp
 	erlang_compat.cpp
+	erlang_json.cpp
 	errors.cpp
 )
 
@@ -32,7 +33,7 @@ ADD_DEFINITIONS(-DLIBSOFADB_EXPORTS)
 ADD_LIBRARY(libsofadb SHARED ${libsofadb_SRCS} ${libsofadb_INCLUDES})
 SET_TARGET_PROPERTIES(libsofadb PROPERTIES OUTPUT_NAME "sofadb")
 
-TARGET_LINK_LIBRARIES(libsofadb crypto)
+TARGET_LINK_LIBRARIES(libsofadb crypto yajl)
 # ${LevelDb_LIBRARY}
 #	json_spirit)# bigint)
 

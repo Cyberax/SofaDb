@@ -46,7 +46,7 @@ namespace sofadb {
 		const result_code_t code_;
 		std::string what_;
 	public:
-		SOFADB_PUBLIC sofa_exception(const result_code_t code);
+		SOFADB_PUBLIC sofa_exception(const result_code_t &code);
 		virtual ~sofa_exception() throw() {}
 
 		const result_code_t & err() const
