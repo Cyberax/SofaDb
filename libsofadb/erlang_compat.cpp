@@ -1,4 +1,5 @@
 #include "erlang_compat.h"
+#include "BigIntegerUtils.hh"
 #include <boost/make_shared.hpp>
 #include <boost/cast.hpp>
 #include <vector>
@@ -18,10 +19,29 @@ list_ptr_t list_t::make()
 	return boost::make_shared<list_t>();
 }
 
-list_ptr_t list_t::make(const list_t &other)
+tuple_ptr_t tuple_t::make()
 {
-	auto res=boost::make_shared<list_t>();
-	*res = other;
+	return boost::make_shared<tuple_t>();
+}
+
+binary_ptr_t binary_t::make()
+{
+	return boost::make_shared<binary_t>();
+}
+
+binary_ptr_t binary_t::make_from_string(const std::string &str)
+{
+	binary_ptr_t res(make());
+	res->binary_.reserve(str.size()+1);
+	res->binary_.insert(res->binary_.end(), str.begin(), str.end());
+	return res;
+}
+
+binary_ptr_t binary_t::make_from_buf(const unsigned char *ptr, size_t sz)
+{
+	binary_ptr_t res(make());
+	res->binary_.reserve(sz+1);
+	res->binary_.insert(res->binary_.end(), ptr, ptr+sz);
 	return res;
 }
 
@@ -157,6 +177,14 @@ struct SOFADB_LOCAL term_to_binary_visitor : public boost::static_visitor<>
 			iter!=ptr->elements_.end(); ++iter)
 			iter->apply_visitor(*this);
 	}
+
+	void operator()(const binary_ptr_t &ptr) const
+	{
+		out->write_byte(BINARY_EXT);
+		out->write_uint4(numeric_cast<uint32_t>(ptr->binary_.size()));
+		if (!ptr->binary_.empty())
+			out->write(&ptr->binary_[0], ptr->binary_.size());
+	}
 };
 
 void erlang::term_to_binary(const erl_type_t &term, utils::output_stream *out)
@@ -188,7 +216,7 @@ static BigInteger read_big_int(utils::input_stream *in, uint32_t ln)
 
 static erl_type_t read_tuple(utils::input_stream *in, uint32_t ln)
 {
-	tuple_ptr_t res(new tuple_t());
+	tuple_ptr_t res=tuple_t::make();
 	res->elements_.reserve(ln+1);
 	for(uint32_t f=0;f<ln;++f)
 		res->elements_.push_back(read_term(in));
@@ -335,6 +363,16 @@ static erl_type_t read_term(utils::input_stream *in)
 		{
 			return read_list(in);
 		}
+	case BINARY_EXT:
+		{
+			uint32_t ln=in->read_uint4();
+			binary_ptr_t bin=binary_t::make();
+			if (ln==0)
+				return bin;
+			bin->binary_.resize(ln);
+			in->read(&bin->binary_[0], ln);
+			return bin;
+		}
 
 	default:
 		throw std::logic_error("Unknown tag");
@@ -425,6 +463,15 @@ struct SOFADB_LOCAL equality_visitor : public boost::static_visitor<>
 
 		res_=true;
 	}
+
+	void operator()(const binary_ptr_t &l_bin)
+	{
+		binary_ptr_t r_bin=boost::get<binary_ptr_t>(r_);
+		if (r_bin->binary_.size()!=r_bin->binary_.size())
+			return;
+
+		res_=r_bin->binary_ == l_bin->binary_;
+	}
 };
 
 bool erlang::deep_eq(const erl_type_t &l, const erl_type_t &r)
@@ -449,15 +496,11 @@ struct SOFADB_LOCAL printer_visitor : public boost::static_visitor<>
 
 	void operator()(const atom_t &i)
 	{
-		str_ << i;
+		str_ << i.name_;
 	}
 
 	void operator()(const double &i)
 	{
-		//Aside: astute readers might have noticed that we're
-		//comparing two doubles here using == operator which is generally
-		//a big NO-NO. However, in this case we are really
-		//interested in bit-perfect equality.
 		str_ << i;
 	}
 
@@ -495,6 +538,16 @@ struct SOFADB_LOCAL printer_visitor : public boost::static_visitor<>
 			tuple->elements_.at(f).apply_visitor(*this);
 		}
 		str_ << "}";
+	}
+
+	void operator()(const binary_ptr_t &bin) const
+	{
+		str_ << "<<\"";
+		for(size_t f=0;f<bin->binary_.size();++f)
+		{
+			str_ << bin->binary_.at(f);
+		}
+		str_ << "\">>";
 	}
 };
 

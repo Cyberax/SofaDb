@@ -23,6 +23,8 @@
 #define SMALL_TUPLE_EXT (104)
 #define LARGE_TUPLE_EXT (105)
 
+#define BINARY_EXT (109)
+
 #define SMALL_INTEGER_EXT (97)
 #define INTEGER_EXT (98)
 #define ERLANG_INT_MIN (-134217728)
@@ -47,6 +49,9 @@ namespace erlang {
 	struct tuple_t;
 	typedef boost::shared_ptr<tuple_t> tuple_ptr_t;
 
+	struct binary_t;
+	typedef boost::shared_ptr<binary_t> binary_ptr_t;
+
 	typedef boost::variant<
 		erl_nil_t,
 		atom_t,
@@ -54,7 +59,8 @@ namespace erlang {
 		BigInteger,
 		std::string,
 		list_ptr_t,
-		tuple_ptr_t
+		tuple_ptr_t,
+		binary_ptr_t
 		> erl_type_t;
 
 	struct list_t : public boost::enable_shared_from_this<list_t>
@@ -63,12 +69,24 @@ namespace erlang {
 		erl_type_t val_;
 
 		SOFADB_PUBLIC static list_ptr_t make();
-		SOFADB_PUBLIC static list_ptr_t make(const list_t &other);
+	};
+
+	struct binary_t
+	{
+		std::vector<unsigned char> binary_;
+
+		SOFADB_PUBLIC static binary_ptr_t make();
+		SOFADB_PUBLIC static binary_ptr_t make_from_string(
+			const std::string &str);
+		SOFADB_PUBLIC static binary_ptr_t make_from_buf(
+			const unsigned char *ptr, size_t sz);
 	};
 
 	struct tuple_t
 	{
 		std::vector<erl_type_t> elements_;
+
+		SOFADB_PUBLIC static tuple_ptr_t make();
 	};
 
 	SOFADB_PUBLIC bool deep_eq (const erl_type_t &l, const erl_type_t &r);

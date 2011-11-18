@@ -340,7 +340,19 @@ BOOST_AUTO_TEST_CASE(test_empty_doc)
 				104,1,106,106,106}));
 }
 
+BOOST_AUTO_TEST_CASE(test_binary)
+{
+	//rp(term_to_binary(<<"Hello">>)).
+	binary_ptr_t bin=binary_t::make_from_string("Hello");
+	CHECK(test(bin),
+		  buf_t({131,109,0,0,0,5,72,101,108,108,111}));
+}
+
 BOOST_AUTO_TEST_CASE(test_parse_json)
 {
-	parse_json("{\"Hello\" : \"world\", \"this\" : [\"this\",\"is\",\"good\"]}");
+	parse_json("{\"Hello\" : \"world\", \"this\" : [\"is\",\"good\"], "
+			   "\"tst\" : [\"a\", {\"1\" : \"2\"}], "
+			   "\"val\" : true, "
+			   "\"larg\" : 233452340523409580923485092348523309850234950923450"
+			   "}");
 }

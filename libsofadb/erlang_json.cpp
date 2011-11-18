@@ -1,8 +1,10 @@
 #include "erlang_compat.h"
 #include "errors.h"
 #include <yajl/yajl_parse.h>
+#include <yajl/yajl_gen.h>
 #include <boost/utility/value_init.hpp>
 #include <iostream>
+#include <BigIntegerUtils.hh>
 
 using namespace erlang;
 using namespace sofadb;
@@ -42,7 +44,7 @@ struct yajl_deleter
 struct json_processor
 {
 	std::vector<erl_type_t> stack_;
-	std::vector<list_ptr_t> heads_;
+	std::vector<list_ptr_t> tails_;
 
 	boost::value_initialized<bool> head_is_visited_;
 
@@ -62,9 +64,9 @@ void advance_list_with(json_processor *proc, erl_type_t && val)
 		proc->stack_.pop_back(); //We're done with the current tuple
 	} else if (tp.type()==typeid(list_ptr_t))
 	{
-		assert(!proc->heads_.empty());
+		assert(!proc->tails_.empty());
 
-		list_ptr_t &tail=proc->heads_.back();
+		list_ptr_t &tail=proc->tails_.back();
 		if (proc->head_is_visited_.data())
 		{
 			tail->next_=list_t::make();
@@ -99,8 +101,18 @@ static int json_number(void * ctx, const char * numberVal,
 					unsigned int numberLen)
 {
 	json_processor *proc = static_cast<json_processor*>(ctx);
-	//erl_type_t digits(std::string((const char*)numberVal, numberLen));
-	//stringToBigInteger(sd)
+	std::string digits((const char*)numberVal, numberLen);
+	if (digits.find_first_of("eE.")!=std::string::npos)
+	{
+		double val=0;
+		if (sscanf(digits.c_str(), "%lf", &val) == EOF)
+			return 0;
+		advance_list_with(proc, val);
+	} else
+	{
+		advance_list_with(proc, stringToBigInteger(digits));
+	}
+	return 1;
 }
 
 /** strings are returned as pointers into the JSON text when,
@@ -109,7 +121,8 @@ static int json_string(void * ctx, const unsigned char * stringVal,
 					unsigned int stringLen)
 {
 	json_processor *proc = static_cast<json_processor*>(ctx);
-	advance_list_with(proc, std::string((const char*)stringVal, stringLen));
+	binary_ptr_t bin=binary_t::make_from_buf(stringVal, stringLen);
+	advance_list_with(proc, bin);
 
 	return 1;
 }
@@ -122,7 +135,7 @@ static int json_start_array(void * ctx)
 	advance_list_with(proc, new_head);
 
 	proc->stack_.push_back(new_head);
-	proc->heads_.push_back(new_head);
+	proc->tails_.push_back(new_head);
 	proc->head_is_visited_.data() = false;
 
 	return 1;
@@ -132,9 +145,9 @@ static int json_end_array(void * ctx)
 {
 	json_processor *proc = static_cast<json_processor*>(ctx);
 
-	assert(!proc->stack_.empty() && !proc->heads_.empty());
+	assert(!proc->stack_.empty() && !proc->tails_.empty());
 	proc->stack_.pop_back();
-	proc->heads_.pop_back();
+	proc->tails_.pop_back();
 	assert(proc->head_is_visited_.data());
 
 	return 1;
@@ -153,8 +166,8 @@ static int json_map_key(void * ctx, const unsigned char * key,
 	advance_list_with(proc, map_entry);
 	proc->stack_.push_back(map_entry);
 
-	erl_type_t map_key(std::string((const char*)key, stringLen));
-	map_entry->elements_.push_back(map_key);
+	binary_ptr_t bin=binary_t::make_from_buf(key, stringLen);
+	map_entry->elements_.push_back(bin);
 
 	return 1;
 }
@@ -195,8 +208,9 @@ erl_type_t erlang::parse_json(const std::string &str)
 {
 	json_processor processor;
 	list_ptr_t head=list_t::make();
+	processor.head_is_visited_.data()=false;
 	processor.stack_.push_back(erl_type_t(head));
-	processor.heads_.push_back(head);
+	processor.tails_.push_back(head);
 
 	boost::shared_ptr<yajl_handle_t> hndl(
 				yajl_alloc(&json_callbacks, &config, &funcs, &processor),
@@ -208,8 +222,9 @@ erl_type_t erlang::parse_json(const std::string &str)
 	yajl_status status2=yajl_parse_complete(hndl.get());
 	handle_status(hndl.get(), status2, str);
 
+	assert(processor.stack_.size()==1 && processor.tails_.size()==1);
 	std::cout << head->val_ << std::endl;
-	return erl_nil_t();
+	return head->val_;
 }
 
 std::string erlang::json_to_string(const erl_type_t &str)
