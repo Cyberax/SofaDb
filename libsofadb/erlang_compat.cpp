@@ -392,12 +392,12 @@ struct SOFADB_LOCAL equality_visitor : public boost::static_visitor<>
 		list_ptr_t cur_other=boost::get<list_ptr_t>(r_);
 		while(true)
 		{
-			bool first_empty=!!cur;
-			bool second_empty=!!cur_other;
-			if (first_empty != second_empty)
+			bool first_not_empty=!!cur;
+			bool second_not_empty=!!cur_other;
+			if (first_not_empty != second_not_empty)
 				return;
 
-			if (first_empty)
+			if (!first_not_empty)
 			{
 				res_=true;
 				return;
@@ -435,4 +435,72 @@ bool erlang::deep_eq(const erl_type_t &l, const erl_type_t &r)
 	equality_visitor vis(r);
 	l.apply_visitor(vis);
 	return vis.res_;
+}
+
+struct SOFADB_LOCAL printer_visitor : public boost::static_visitor<>
+{
+	std::ostream &str_;
+	printer_visitor(std::ostream &str) : str_(str) {}
+
+	void operator()(const erl_nil_t &i)
+	{
+		str_ << "[]";
+	}
+
+	void operator()(const atom_t &i)
+	{
+		str_ << i;
+	}
+
+	void operator()(const double &i)
+	{
+		//Aside: astute readers might have noticed that we're
+		//comparing two doubles here using == operator which is generally
+		//a big NO-NO. However, in this case we are really
+		//interested in bit-perfect equality.
+		str_ << i;
+	}
+
+	void operator()(const BigInteger &i)
+	{
+		str_ << i;
+	}
+
+	void operator()(const std::string &str)
+	{
+		str_ << "\"" << str << "\"";
+	}
+
+	void operator()(const list_ptr_t &ptr)
+	{
+		list_ptr_t cur=ptr;
+		str_ << "[";
+		while(!!cur)
+		{
+			if (cur!=ptr)
+				str_ << ", ";
+			cur->val_.apply_visitor(*this);
+			cur=cur->next_;
+		}
+		str_ << "]";
+	}
+
+	void operator()(const tuple_ptr_t &tuple)
+	{
+		str_ << "{";
+		for(size_t f=0;f<tuple->elements_.size();++f)
+		{
+			if (f!=0)
+				str_ << ", ";
+			tuple->elements_.at(f).apply_visitor(*this);
+		}
+		str_ << "}";
+	}
+};
+
+std::ostream& erlang::operator <<(std::ostream& str, const erl_type_t &t)
+{
+	printer_visitor vis(str);
+	t.apply_visitor(vis);
+	return str;
 }

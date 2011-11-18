@@ -135,6 +135,8 @@ revision_ptr Database::put(const std::string &id, const maybe_string_t& rev,
 	std::string docpath=DbEngine::DATA_DB+"/"+name_+
 			DbEngine::DB_SEPARATOR+id;
 	//parent_->keystore_->Get
+
+//	assert(false);
 	EZLOGGERSTREAM << "Reading " << docpath << std::endl;
 }
 

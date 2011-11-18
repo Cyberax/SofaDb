@@ -85,6 +85,9 @@ namespace erlang {
 	SOFADB_PUBLIC void term_to_binary(const erl_type_t &term, utils::output_stream *out);
 	SOFADB_PUBLIC erl_type_t binary_to_term(utils::input_stream *in);
 
+	SOFADB_PUBLIC std::ostream& operator <<(std::ostream& str,
+											const erl_type_t &t);
+
 	SOFADB_PUBLIC erl_type_t parse_json(const std::string &str);
 	SOFADB_PUBLIC std::string json_to_string(const erl_type_t &str);
 
