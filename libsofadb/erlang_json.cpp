@@ -51,8 +51,7 @@ struct json_processor
 	result_code_t error_;
 };
 
-
-void advance_list_with(json_processor *proc, erl_type_t && val)
+static void advance_list_with(json_processor *proc, erl_type_t && val)
 {
 	assert(!proc->stack_.empty());
 
@@ -155,6 +154,12 @@ static int json_end_array(void * ctx)
 
 static int json_start_map(void * ctx)
 {
+	json_processor *proc = static_cast<json_processor*>(ctx);
+	const tuple_ptr_t map_start=tuple_t::make();
+	advance_list_with(proc, map_start);
+	proc->head_is_visited_.data() = false;
+	proc->stack_.push_back(map_start);
+
 	return json_start_array(ctx);
 }
 
@@ -162,7 +167,7 @@ static int json_map_key(void * ctx, const unsigned char * key,
 				 unsigned int stringLen)
 {
 	json_processor *proc = static_cast<json_processor*>(ctx);
-	const tuple_ptr_t map_entry(new tuple_t());
+	const tuple_ptr_t map_entry=tuple_t::make();
 	advance_list_with(proc, map_entry);
 	proc->stack_.push_back(map_entry);
 
@@ -174,6 +179,8 @@ static int json_map_key(void * ctx, const unsigned char * key,
 
 static int json_end_map(void * ctx)
 {
+	json_processor *proc = static_cast<json_processor*>(ctx);
+
 	return json_end_array(ctx);
 }
 
@@ -191,7 +198,8 @@ static yajl_callbacks json_callbacks = {
 	&json_end_array,
 };
 
-void handle_status(yajl_handle hndl, yajl_status status, const std::string &str)
+static void handle_status(yajl_handle hndl, yajl_status status,
+						  const std::string &str)
 {
 	if (status==yajl_status_ok)
 		return;
@@ -226,14 +234,14 @@ erl_type_t erlang::parse_json(const std::string &str)
 	return head->val_;
 }
 
-yajl_gen_config json_get_config = {1, "    "};
+static yajl_gen_config json_get_config = {1, "    "};
 
 struct printer_context
 {
 	std::string res_;
 };
 
-struct printer_deleter
+struct SOFADB_LOCAL printer_deleter
 {
 	void operator ()(yajl_gen hndl)
 	{
@@ -241,24 +249,79 @@ struct printer_deleter
 	}
 };
 
-void json_print(void * ctx, const char * str, unsigned int len)
+static void json_print(void * ctx, const char * str, unsigned int len)
 {
 	printer_context *prn = static_cast<printer_context*>(ctx);
 	prn->res_.append(str, len);
 }
 
-void check_status(yajl_gen_status st)
+static void check_status(yajl_gen_status st)
 {
-	if (st!=yajl_status_ok)
+	if (st!=yajl_gen_status_ok)
 		err(result_code_t::sError) << "Unepxected return code "<<
 									  st<<" from the JSON printer";
 }
 
-void print_list(boost::shared_ptr<yajl_gen_t> ptr, const erl_type_t &js)
+static void print_map(boost::shared_ptr<yajl_gen_t> ptr, const erl_type_t &js);
+
+static void print_element(boost::shared_ptr<yajl_gen_t> ptr,
+						  const erl_type_t &tp)
 {
-	if (js.type()!=typeid(list_ptr_t))
+	if (tp.type()==typeid(list_ptr_t))
+	{
+		//Array
+		check_status(yajl_gen_array_open(ptr.get()));
+		for(list_ptr_t cur=boost::get<list_ptr_t>(tp); !!cur; cur=cur->next_)
+		{
+			print_element(ptr, cur->val_);
+		}
+		check_status(yajl_gen_array_close(ptr.get()));
+	} else if (tp.type()==typeid(tuple_ptr_t))
+	{
+		//Submap
+		print_map(ptr, tp);
+	} else if (tp.type()==typeid(binary_ptr_t))
+	{
+		binary_ptr_t cur = boost::get<binary_ptr_t>(tp);
+		yajl_gen_string(ptr.get(), cur->binary_.data(), cur->binary_.size());
+	} else if (tp.type()==typeid(BigInteger))
+	{
+		//Int
+		std::string num=bigIntegerToString(boost::get<BigInteger>(tp));
+		yajl_gen_number(ptr.get(), num.c_str(), num.length());
+	} else if (tp.type()==typeid(atom_t))
+	{
+		//Boolean
+		const std::string &str=boost::get<const atom_t&>(tp).name_;
+		if (str=="true")
+			yajl_gen_bool(ptr.get(), 1);
+		else if (str=="false")
+			yajl_gen_bool(ptr.get(), 0);
+		else
+			err(result_code_t::sWrongRevision) << "Malformed boolean " << tp;
+	} else if (tp.type()==typeid(double))
+	{
+		yajl_gen_double(ptr.get(), boost::get<double>(tp));
+	} else if (tp.type()==typeid(erl_nil_t))
+	{
+		//Null
+		yajl_gen_null(ptr.get());
+	} else
+		err(result_code_t::sWrongRevision) << "Unexpected JSON term "<<tp;
+}
+
+static void print_map(boost::shared_ptr<yajl_gen_t> ptr, const erl_type_t &js)
+{
+	if (js.type()!=typeid(tuple_ptr_t))
+		err(result_code_t::sWrongRevision) << "Not a JSON document";
+	tuple_ptr_t cur = boost::get<tuple_ptr_t>(js);
+	if (cur->elements_.size()!=1)
+		err(result_code_t::sError) << "Malformed JSON";
+	erl_type_t sub = cur->elements_.at(0);
+
+	if (sub.type()!=typeid(list_ptr_t))
 		err(result_code_t::sWrongRevision) << "Document is not well formed";
-	const list_ptr_t &lst=boost::get<list_ptr_t>(js);
+	const list_ptr_t &lst=boost::get<list_ptr_t>(sub);
 
 	check_status(yajl_gen_map_open(ptr.get()));
 	for(list_ptr_t cur=lst; !!cur; cur=cur->next_)
@@ -273,7 +336,9 @@ void print_list(boost::shared_ptr<yajl_gen_t> ptr, const erl_type_t &js)
 			err(result_code_t::sError) << "Unexpected JSON structure, "
 										  "got "<<tp->elements_.size()<<
 										  " elements instead of 2";
-		yajl_o
+
+		print_element(ptr, tp->elements_.at(0));
+		print_element(ptr, tp->elements_.at(1));
 	}
 	check_status(yajl_gen_map_close(ptr.get()));
 }
@@ -286,7 +351,7 @@ std::string erlang::json_to_string(const erl_type_t &js)
 								&alloc_funcs, &ctx),
 				printer_deleter());
 
-	print_list(ptr, js);
+	print_map(ptr, js);
 
 	yajl_gen_clear(ptr.get());
 	return ctx.res_;

@@ -350,12 +350,16 @@ BOOST_AUTO_TEST_CASE(test_binary)
 
 BOOST_AUTO_TEST_CASE(test_parse_json)
 {
-	erl_type_t res=
-		parse_json("{\"Hello\" : \"world\", \"this\" : [\"is\",\"good\"], "
-			   "\"tst\" : [\"a\", {\"1\" : \"2\"}], "
-			   "\"val\" : true, "
-			   "\"larg\" : 233452340523409580923485092348523309850234950923450"
-			   "}");
+	erl_type_t res=parse_json(
+				"{\"Hello\" : \"world\", \"this\" : [\"is\", {\"a\" : \"test\"}]}");
+//		parse_json("{\"Hello\" : \"world\", \"this\" : [\"is\",\"good\"], "
+//			   "\"tst\" : [\"a\", {\"1\" : \"2\"}], "
+//			   "\"val\" : true, "
+//			   "\"larg\" : 233452340523409580923485092348523309850234950923450"
+//			   "}");
+	erl_type_t roundtrip=parse_json(json_to_string(res));
+	BOOST_REQUIRE(deep_eq(res, roundtrip));
 
 	std::cout << res << std::endl;
+	std::cout << json_to_string(res) << std::endl;
 }
