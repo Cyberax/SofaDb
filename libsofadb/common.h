@@ -26,6 +26,8 @@
   #endif
 #endif
 
+#define BOOST_MPL_CFG_NO_PREPROCESSED_HEADERS
+#define BOOST_MPL_LIMIT_LIST_SIZE 10
 #include <boost/shared_ptr.hpp>
 #include <string>
 #include <vector>

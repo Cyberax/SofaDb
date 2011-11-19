@@ -5,6 +5,7 @@
 #include <boost/utility/value_init.hpp>
 #include <iostream>
 #include <BigIntegerUtils.hh>
+#include <tuple>
 
 using namespace erlang;
 using namespace sofadb;
@@ -43,36 +44,39 @@ struct yajl_deleter
 
 struct json_processor
 {
-	std::vector<erl_type_t> stack_;
-	std::vector<list_ptr_t> tails_;
-
-	boost::value_initialized<bool> head_is_visited_;
+	//Structure is: <current_tuple, current_list_tail, parent_ref>
+	typedef std::tuple<erl_type_t, list_ptr_t, erl_type_t*> ent_t;
+	std::vector<ent_t> stack_;
 
 	result_code_t error_;
 };
 
-static void advance_list_with(json_processor *proc, erl_type_t && val)
+static erl_type_t* advance_list_with(json_processor *proc, erl_type_t && val)
 {
 	assert(!proc->stack_.empty());
 
-	erl_type_t &tp=proc->stack_.back();
+	json_processor::ent_t &state = proc->stack_.back();
+	erl_type_t &tp = std::get<0>(state);
+
 	if (tp.type()==typeid(tuple_ptr_t))
 	{
 		//This is the second element of the tuple
-		boost::get<tuple_ptr_t>(tp)->elements_.push_back(std::move(val));
-		proc->stack_.pop_back(); //We're done with the current tuple
+		tuple_ptr_t tp_ptr=boost::get<tuple_ptr_t>(tp);
+		tp_ptr->elements_.push_back(std::move(val));
+		proc->stack_.pop_back(); //We're done with the tuple
+
+		return &tp_ptr->elements_.back();
 	} else if (tp.type()==typeid(list_ptr_t))
 	{
-		assert(!proc->tails_.empty());
-
-		list_ptr_t &tail=proc->tails_.back();
-		if (proc->head_is_visited_.data())
+		list_ptr_t &tail=std::get<1>(state);
+		if (tail)
 		{
 			tail->next_=list_t::make();
 			tail=tail->next_;
 		} else
-			proc->head_is_visited_.data() = true;
+			tail = boost::get<list_ptr_t>(tp);
 		tail->val_=std::move(val);
+		return &tail->val_;
 	} else
 		abort();
 }
@@ -131,11 +135,10 @@ static int json_start_array(void * ctx)
 	json_processor *proc = static_cast<json_processor*>(ctx);
 
 	list_ptr_t new_head=list_t::make();
-	advance_list_with(proc, new_head);
+	erl_type_t *new_elem=advance_list_with(proc, new_head);
 
-	proc->stack_.push_back(new_head);
-	proc->tails_.push_back(new_head);
-	proc->head_is_visited_.data() = false;
+	proc->stack_.push_back(std::make_tuple(erl_type_t(new_head),
+										   list_ptr_t(),new_elem));
 
 	return 1;
 }
@@ -144,10 +147,18 @@ static int json_end_array(void * ctx)
 {
 	json_processor *proc = static_cast<json_processor*>(ctx);
 
-	assert(!proc->stack_.empty() && !proc->tails_.empty());
+	assert(!proc->stack_.empty());
+
+	json_processor::ent_t ent=proc->stack_.back();
+	if (std::get<1>(ent)==list_ptr_t())
+	{
+		//We've got an empty list, we can get it for JSONs like this:
+		//{"a" : {}}
+		//so we need to back off and replace it with erl_nil_t()
+		*(std::get<2>(ent)) = erl_nil_t();
+	}
+
 	proc->stack_.pop_back();
-	proc->tails_.pop_back();
-	assert(proc->head_is_visited_.data());
 
 	return 1;
 }
@@ -156,9 +167,10 @@ static int json_start_map(void * ctx)
 {
 	json_processor *proc = static_cast<json_processor*>(ctx);
 	const tuple_ptr_t map_start=tuple_t::make();
-	advance_list_with(proc, map_start);
-	proc->head_is_visited_.data() = false;
-	proc->stack_.push_back(map_start);
+	erl_type_t *map_elem=advance_list_with(proc, map_start);
+
+	proc->stack_.push_back(std::make_tuple(map_start, list_ptr_t(),
+										   map_elem));
 
 	return json_start_array(ctx);
 }
@@ -168,8 +180,8 @@ static int json_map_key(void * ctx, const unsigned char * key,
 {
 	json_processor *proc = static_cast<json_processor*>(ctx);
 	const tuple_ptr_t map_entry=tuple_t::make();
-	advance_list_with(proc, map_entry);
-	proc->stack_.push_back(map_entry);
+	erl_type_t *map_elem=advance_list_with(proc, map_entry);
+	proc->stack_.push_back(std::make_tuple(map_entry, list_ptr_t(), map_elem));
 
 	binary_ptr_t bin=binary_t::make_from_buf(key, stringLen);
 	map_entry->elements_.push_back(bin);
@@ -216,9 +228,8 @@ erl_type_t erlang::parse_json(const std::string &str)
 {
 	json_processor processor;
 	list_ptr_t head=list_t::make();
-	processor.head_is_visited_.data()=false;
-	processor.stack_.push_back(erl_type_t(head));
-	processor.tails_.push_back(head);
+	erl_type_t head_tp(head);
+	processor.stack_.push_back(std::make_tuple(head_tp, list_ptr_t(), &head_tp));
 
 	boost::shared_ptr<yajl_handle_t> hndl(
 				yajl_alloc(&json_callbacks, &config, &alloc_funcs, &processor),
@@ -230,7 +241,7 @@ erl_type_t erlang::parse_json(const std::string &str)
 	yajl_status status2=yajl_parse_complete(hndl.get());
 	handle_status(hndl.get(), status2, str);
 
-	assert(processor.stack_.size()==1 && processor.tails_.size()==1);
+	assert(processor.stack_.size());
 	return head->val_;
 }
 
@@ -301,7 +312,9 @@ static void print_element(boost::shared_ptr<yajl_gen_t> ptr,
 			err(result_code_t::sWrongRevision) << "Malformed boolean " << tp;
 	} else if (tp.type()==typeid(double))
 	{
-		yajl_gen_double(ptr.get(), boost::get<double>(tp));
+		char buf[32] = {0};
+		sprintf(buf, "%f", boost::get<double>(tp));
+		yajl_gen_number(ptr.get(), buf, strlen(buf));
 	} else if (tp.type()==typeid(erl_nil_t))
 	{
 		//Null
@@ -318,6 +331,13 @@ static void print_map(boost::shared_ptr<yajl_gen_t> ptr, const erl_type_t &js)
 	if (cur->elements_.size()!=1)
 		err(result_code_t::sError) << "Malformed JSON";
 	erl_type_t sub = cur->elements_.at(0);
+
+	if (sub.type()==typeid(erl_nil_t))
+	{
+		check_status(yajl_gen_map_open(ptr.get()));
+		check_status(yajl_gen_map_close(ptr.get()));
+		return;
+	}
 
 	if (sub.type()!=typeid(list_ptr_t))
 		err(result_code_t::sWrongRevision) << "Document is not well formed";
@@ -355,4 +375,76 @@ std::string erlang::json_to_string(const erl_type_t &js)
 
 	yajl_gen_clear(ptr.get());
 	return ctx.res_;
+}
+
+std::string erlang::binary_to_string(const erl_type_t &tp)
+{
+	binary_ptr_t ptr=boost::get<binary_ptr_t>(tp);
+	return std::string(ptr->binary_.begin(), ptr->binary_.end());
+}
+
+static bool find_key(const erl_type_t &tp,
+					 const std::string &str, erl_type_t **out)
+{
+	erl_type_t str_bin=binary_t::make_from_string(str);
+
+	tuple_ptr_t ptr=boost::get<tuple_ptr_t>(tp);
+	assert(ptr->elements_.size()==1);
+	list_ptr_t lst=boost::get<list_ptr_t>(ptr->elements_.at(0));
+	for(list_ptr_t cur=lst; !!cur; cur=cur->next_)
+	{
+		tuple_ptr_t tpl=boost::get<tuple_ptr_t>(cur->val_);
+		assert(tpl->elements_.size()==2);
+
+		if (deep_eq(tpl->elements_.at(0),str_bin))
+		{
+			if (out)
+				*out = &tpl->elements_.at(1);
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool erlang::has_key(const erl_type_t &tp, const std::string &str)
+{
+	return find_key(tp, str, 0);
+}
+
+const erl_type_t& erlang::get_val(const erl_type_t &tp, const std::string &str)
+{
+	erl_type_t *res = 0;
+	if (!find_key(tp, str, &res))
+		throw boost::bad_get();
+	return *res;
+}
+
+erl_type_t& erlang::put_val(erl_type_t& tp, const std::string &str)
+{
+	erl_type_t *out;
+	if (find_key(tp, str, &out))
+		return *out;
+
+	tuple_ptr_t ptr=boost::get<tuple_ptr_t>(tp);
+	assert(ptr->elements_.size()==1);
+	list_ptr_t tail=boost::get<list_ptr_t>(tp);
+
+	list_ptr_t head=list_t::make();
+	head->next_=tail;
+	ptr->elements_.at(0) = head;
+
+	tuple_ptr_t tpl=tuple_t::make();
+	head->val_ = tpl;
+	tpl->elements_.push_back(binary_t::make_from_string(str));
+	tpl->elements_.push_back(erl_nil_t());
+
+	return tpl->elements_.back();
+}
+
+erl_type_t erlang::create_submap()
+{
+	tuple_ptr_t tpl=tuple_t::make();
+//	tpl->elements_.push_back();
+	return tpl;
 }

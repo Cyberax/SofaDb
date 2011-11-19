@@ -557,3 +557,4 @@ std::ostream& erlang::operator <<(std::ostream& str, const erl_type_t &t)
 	t.apply_visitor(vis);
 	return str;
 }
+

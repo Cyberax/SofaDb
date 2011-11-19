@@ -2,8 +2,6 @@
 #define ENGINE_H
 #include "common.h"
 
-#include "json_spirit.h"
-
 #include <map>
 #include <set>
 #include <boost/optional.hpp>
@@ -71,7 +69,7 @@ namespace sofadb {
 		//Revision in the format num-MD5 where MD5 is a hash of the document's
 		//contents.
 		RevisionInfo previous_rev_;
-		json_spirit::Array body_;
+		//erlang::erl_type_t json_body_;
 		attachment_vector_t atts_;
 
 		//Cached revision info, can be computed based on the previous
@@ -107,12 +105,12 @@ namespace sofadb {
 
 		Database(DbEngine *parent,
 				 time_t created_on, const std::string &name);
-		Database(DbEngine *parent,
-				 const json_spirit::Object &json);
+//		Database(DbEngine *parent,
+//				 const json_spirit::Object &json);
 
 		friend class DbEngine;
 	public:
-		SOFADB_PUBLIC json_spirit::Object to_json() const;
+//		SOFADB_PUBLIC json_spirit::Object to_json() const;
 
 		bool operator == (const Database &other) const
 		{

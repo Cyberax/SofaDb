@@ -2,10 +2,7 @@
 #define ERLANG_COMPAT_H
 
 #include "common.h"
-
-#include <boost/type_traits.hpp>
 #include <boost/variant.hpp>
-#include <boost/shared_array.hpp>
 #include <boost/enable_shared_from_this.hpp>
 
 #include "BigInteger.hh"
@@ -81,6 +78,7 @@ namespace erlang {
 		SOFADB_PUBLIC static binary_ptr_t make_from_buf(
 			const unsigned char *ptr, size_t sz);
 	};
+	SOFADB_PUBLIC std::string binary_to_string(const erl_type_t &tp);
 
 	struct tuple_t
 	{
@@ -106,9 +104,16 @@ namespace erlang {
 	SOFADB_PUBLIC std::ostream& operator <<(std::ostream& str,
 											const erl_type_t &t);
 
+	//////////////////JSON-related functionality/////////////
 	SOFADB_PUBLIC erl_type_t parse_json(const std::string &str);
 	SOFADB_PUBLIC std::string json_to_string(const erl_type_t &str);
 
+	SOFADB_PUBLIC const erl_type_t& get_val(const erl_type_t &tp,
+											const std::string &str);
+	SOFADB_PUBLIC bool has_key(const erl_type_t& tp, const std::string &str);
+
+	SOFADB_PUBLIC erl_type_t& put_val(erl_type_t& tp, const std::string &str);
+	SOFADB_PUBLIC erl_type_t create_submap();
 }; //namespace erlang
 
 #endif // ERLANG_COMPAT_H

@@ -348,18 +348,28 @@ BOOST_AUTO_TEST_CASE(test_binary)
 		  buf_t({131,109,0,0,0,5,72,101,108,108,111}));
 }
 
+static erl_type_t roundtrip(const std::string &js)
+{
+	erl_type_t res=parse_json(js);
+	erl_type_t res2=parse_json(json_to_string(res));
+	BOOST_REQUIRE(deep_eq(res, res2));
+	return res2;
+}
+
 BOOST_AUTO_TEST_CASE(test_parse_json)
 {
-	erl_type_t res=parse_json(
-				"{\"Hello\" : \"world\", \"this\" : [\"is\", {\"a\" : \"test\"}]}");
-//		parse_json("{\"Hello\" : \"world\", \"this\" : [\"is\",\"good\"], "
-//			   "\"tst\" : [\"a\", {\"1\" : \"2\"}], "
-//			   "\"val\" : true, "
-//			   "\"larg\" : 233452340523409580923485092348523309850234950923450"
-//			   "}");
-	erl_type_t roundtrip=parse_json(json_to_string(res));
-	BOOST_REQUIRE(deep_eq(res, roundtrip));
+	roundtrip("{\"H\" : \"w\", \"this\" : [\"is\", {\"a\" : \"test\"}]}");
 
-	std::cout << res << std::endl;
-	std::cout << json_to_string(res) << std::endl;
+	roundtrip("{\"Hello\" : {\"a\" : null}}");
+	roundtrip("{\"Hello\" : {\"a\" : [{}]}}");
+	roundtrip("{\"Hello\" : [23123.123000]}");
+	roundtrip("{\"Hello\" : [233452340523409580923485092348523309850234950923450]}");
+
+//	erl_type_t res=roundtrip("{\"Hello\" : {}}");
+//	std::cout << json_to_string(res) << std::endl;
+	roundtrip("{\"Hello\" : \"world\", \"this\" : [\"is\",\"good\"], "
+			   "\"tst\" : [\"a\", {\"1\" : \"2\"}], "
+			   "\"val\" : true, "
+			   "\"larg\" : 233452340523409580923485092348523309850234950923450"
+			   "}");
 }

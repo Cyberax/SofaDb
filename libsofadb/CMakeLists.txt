@@ -25,7 +25,6 @@ FILE(GLOB libsofadb_INCLUDES
 
 INCLUDE_DIRECTORIES(.)
 INCLUDE_DIRECTORIES(${LevelDb_INCLUDE})
-INCLUDE_DIRECTORIES(${json_spirit_SOURCE_DIR})
 INCLUDE_DIRECTORIES(${bigint_SOURCE_DIR})
 
 ADD_DEFINITIONS(-DLIBSOFADB_EXPORTS)
@@ -38,7 +37,7 @@ TARGET_LINK_LIBRARIES(libsofadb crypto yajl)
 #	json_spirit)# bigint)
 
 TARGET_LINK_LIBRARIES(libsofadb -Wl,-whole-archive
-	${LevelDb_LIBRARY} json_spirit bigint -Wl,-no-whole-archive)
+	${LevelDb_LIBRARY} bigint -Wl,-no-whole-archive)
 
 # We must not re-export static libraries
 SET_TARGET_PROPERTIES(libsofadb PROPERTIES LINK_INTERFACE_LIBRARIES "pthread")
