@@ -390,7 +390,12 @@ static bool find_key(const erl_type_t &tp,
 
 	tuple_ptr_t ptr=boost::get<tuple_ptr_t>(tp);
 	assert(ptr->elements_.size()==1);
-	list_ptr_t lst=boost::get<list_ptr_t>(ptr->elements_.at(0));
+
+	const erl_type_t elem=ptr->elements_.at(0);
+	if (elem.type()==typeid(erl_nil_t))
+		return false;
+
+	list_ptr_t lst=boost::get<list_ptr_t>(elem);
 	for(list_ptr_t cur=lst; !!cur; cur=cur->next_)
 	{
 		tuple_ptr_t tpl=boost::get<tuple_ptr_t>(cur->val_);
@@ -428,11 +433,22 @@ erl_type_t& erlang::put_val(erl_type_t& tp, const std::string &str)
 
 	tuple_ptr_t ptr=boost::get<tuple_ptr_t>(tp);
 	assert(ptr->elements_.size()==1);
-	list_ptr_t tail=boost::get<list_ptr_t>(tp);
+	erl_type_t &cur_elem = ptr->elements_.at(0);
 
-	list_ptr_t head=list_t::make();
-	head->next_=tail;
-	ptr->elements_.at(0) = head;
+	list_ptr_t head;
+
+	//We have an empty list - transform it into a list
+	if (cur_elem.type()==typeid(erl_nil_t))
+	{
+		head=list_t::make();
+		cur_elem = head;
+	} else
+	{
+		list_ptr_t tail=boost::get<list_ptr_t>(cur_elem);
+		head=list_t::make();
+		head->next_=tail;
+		cur_elem = head;
+	}
 
 	tuple_ptr_t tpl=tuple_t::make();
 	head->val_ = tpl;
@@ -445,6 +461,6 @@ erl_type_t& erlang::put_val(erl_type_t& tp, const std::string &str)
 erl_type_t erlang::create_submap()
 {
 	tuple_ptr_t tpl=tuple_t::make();
-//	tpl->elements_.push_back();
+	tpl->elements_.push_back(erl_nil_t());
 	return tpl;
 }

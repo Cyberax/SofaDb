@@ -365,11 +365,27 @@ BOOST_AUTO_TEST_CASE(test_parse_json)
 	roundtrip("{\"Hello\" : [23123.123000]}");
 	roundtrip("{\"Hello\" : [233452340523409580923485092348523309850234950923450]}");
 
-//	erl_type_t res=roundtrip("{\"Hello\" : {}}");
-//	std::cout << json_to_string(res) << std::endl;
 	roundtrip("{\"Hello\" : \"world\", \"this\" : [\"is\",\"good\"], "
 			   "\"tst\" : [\"a\", {\"1\" : \"2\"}], "
 			   "\"val\" : true, "
 			   "\"larg\" : 233452340523409580923485092348523309850234950923450"
 			   "}");
+}
+
+BOOST_AUTO_TEST_CASE(test_programmatic_json)
+{
+	erl_type_t root=create_submap();
+	put_val(root, "Hello")=binary_t::make_from_string("world");
+	put_val(root, "test") = erl_nil_t();
+
+	erl_type_t sub = create_submap();
+	put_val(root, "sub") = sub;
+	put_val(sub, "a") = BigInteger(1234214);
+
+	erl_type_t js=parse_json("{"
+							 "\"sub\" : {\"a\" : 1234214}, "
+							 "\"test\": null,"
+							 "\"Hello\": \"world\""
+							 "}");
+	BOOST_REQUIRE(deep_eq(js, root));
 }

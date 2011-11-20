@@ -36,9 +36,7 @@ namespace erlang {
 		std::string name_;
 	};
 
-	struct erl_nil_t
-	{
-	};
+	typedef boost::blank erl_nil_t;
 
 	struct list_t;
 	typedef boost::shared_ptr<list_t> list_ptr_t;
