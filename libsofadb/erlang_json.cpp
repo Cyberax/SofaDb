@@ -156,7 +156,8 @@ static int json_end_array(void * ctx)
 		//{"a" : {}}
 		//so we need to back off and replace it with erl_nil_t()
 		*(std::get<2>(ent)) = erl_nil_t();
-	}
+	} else
+		advance_list_with(proc, erl_nil_t()); //Terminate a proper list
 
 	proc->stack_.pop_back();
 
@@ -284,6 +285,10 @@ static void print_element(boost::shared_ptr<yajl_gen_t> ptr,
 		check_status(yajl_gen_array_open(ptr.get()));
 		for(list_ptr_t cur=boost::get<list_ptr_t>(tp); !!cur; cur=cur->next_)
 		{
+			//Tail of a proper list
+			if (!cur->next_ && cur->val_.type()==typeid(erl_nil_t))
+				break;
+
 			print_element(ptr, cur->val_);
 		}
 		check_status(yajl_gen_array_close(ptr.get()));
@@ -383,19 +388,24 @@ std::string erlang::binary_to_string(const erl_type_t &tp)
 	return std::string(ptr->binary_.begin(), ptr->binary_.end());
 }
 
-static bool find_key(const erl_type_t &tp,
-					 const std::string &str, erl_type_t **out)
+list_ptr_t erlang::get_json_list(const erl_type_t& tp)
 {
-	erl_type_t str_bin=binary_t::make_from_string(str);
-
 	tuple_ptr_t ptr=boost::get<tuple_ptr_t>(tp);
 	assert(ptr->elements_.size()==1);
 
 	const erl_type_t elem=ptr->elements_.at(0);
 	if (elem.type()==typeid(erl_nil_t))
-		return false;
+		return list_ptr_t();
 
-	list_ptr_t lst=boost::get<list_ptr_t>(elem);
+	return boost::get<list_ptr_t>(elem);
+}
+
+static bool find_key(const erl_type_t &tp,
+					 const std::string &str, erl_type_t **out)
+{
+	erl_type_t str_bin=binary_t::make_from_string(str);
+
+	list_ptr_t lst=get_json_list(tp);
 	for(list_ptr_t cur=lst; !!cur; cur=cur->next_)
 	{
 		tuple_ptr_t tpl=boost::get<tuple_ptr_t>(cur->val_);

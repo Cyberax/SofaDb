@@ -5,6 +5,7 @@
 #include <map>
 #include <set>
 #include <boost/optional.hpp>
+#include <erlang_compat.h>
 
 namespace leveldb {
 	class DB;
@@ -16,21 +17,26 @@ namespace sofadb {
 
 	typedef boost::optional<std::string> maybe_string_t;
 
-	class InlineAttachment
+	class inline_attachment_t
 	{
 		std::string name_, content_type_;
 		uint8_t md5_[16];
 	};
-	typedef std::vector<InlineAttachment> attachment_vector_t;
+	typedef std::vector<inline_attachment_t> attachment_vector_t;
 
-	struct RevisionInfo
+	SOFADB_PUBLIC std::string calculate_hash(
+		const std::vector<unsigned char> &arr);
+
+	struct revision_info_t
 	{
-		uint32_t id_; //This is a revision number
-		uint8_t md5_[16]; //Document's MD5 hash
+		SOFADB_PUBLIC static const revision_info_t empty_revision;
 
-		RevisionInfo() : md5_(), id_()
-		{
-		}
+		uint32_t id_; //This is a revision number
+		std::string rev_; //Document's MD5 hash or other ID
+
+		revision_info_t() : id_() {}
+		SOFADB_PUBLIC revision_info_t(const std::string &);
+		SOFADB_PUBLIC std::string to_string() const;
 	};
 
 	/**
@@ -61,26 +67,27 @@ namespace sofadb {
 		by zlib with 8 compression level:
 		text/*, application/javascript, application/json, application/xml
 	  */
-	class DocumentRevision
+	struct revision_t
 	{
 		std::string id_; //The immutable document ID
 
 		bool deleted_;
 		//Revision in the format num-MD5 where MD5 is a hash of the document's
 		//contents.
-		RevisionInfo previous_rev_;
-		//erlang::erl_type_t json_body_;
+		revision_info_t previous_rev_;
+		erlang::erl_type_t json_body_;
 		attachment_vector_t atts_;
 
 		//Cached revision info, can be computed based on the previous
 		//revision
-		boost::optional<RevisionInfo> rev_;
+		boost::optional<revision_info_t> rev_;
+		SOFADB_PUBLIC void calculate_revision();
 	};
-	typedef boost::shared_ptr<DocumentRevision> revision_ptr;
+	typedef boost::shared_ptr<revision_t> revision_ptr;
 
 	/**
-		Database has the following metadata present. Not everything is yet
-		implemented.
+		Database should have the following metadata present.
+		Not everything is yet implemented.
 		 {
 		"db_name": "test",
 		"doc_count":2,
@@ -100,28 +107,27 @@ namespace sofadb {
 		std::recursive_mutex mutex_;
 
 		bool closed_;
-		time_t created_on_;
+		erlang
+		::erl_type_t json_meta_;
 		std::string name_;
 
-		Database(DbEngine *parent,
-				 time_t created_on, const std::string &name);
-//		Database(DbEngine *parent,
-//				 const json_spirit::Object &json);
+		Database(DbEngine *parent, const std::string &name);
+		Database(DbEngine *parent, const erlang::erl_type_t &meta);
 
 		friend class DbEngine;
 	public:
-//		SOFADB_PUBLIC json_spirit::Object to_json() const;
+		const erlang::erl_type_t& get_meta() const {return json_meta_;}
 
 		bool operator == (const Database &other) const
 		{
-			return created_on_==other.created_on_ && other.name_==name_;
+			return deep_eq(other.json_meta_, json_meta_);
 		}
 
 		SOFADB_PUBLIC revision_ptr get(
 			const std::string &id, const maybe_string_t& rev);
 		SOFADB_PUBLIC revision_ptr put(
 			const std::string &id, const maybe_string_t& rev,
-			const std::string &doc_str, bool batched);
+			const erlang::erl_type_t &json, bool batched);
 		SOFADB_PUBLIC revision_ptr remove(
 			const std::string &id, const maybe_string_t& rev,
 			bool batched);
@@ -134,6 +140,8 @@ namespace sofadb {
 
 	private:
 		void check_closed();
+		std::pair<erlang::erl_type_t, erlang::erl_type_t>
+			sanitize_and_get_reserved_words(const erlang::erl_type_t &tp);
 	};
 	typedef boost::shared_ptr<Database> database_ptr;
 

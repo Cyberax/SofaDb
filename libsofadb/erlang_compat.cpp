@@ -12,6 +12,10 @@ using boost::numeric_cast;
 using namespace erlang;
 using namespace utils;
 
+const atom_t atom_t::TRUE={"true"};
+const atom_t atom_t::FALSE={"false"};
+
+
 static erl_type_t read_term(utils::input_stream *in);
 
 list_ptr_t list_t::make()
@@ -474,6 +478,15 @@ struct SOFADB_LOCAL equality_visitor : public boost::static_visitor<>
 	}
 };
 
+erl_type_t erlang::deep_copy(const erl_type_t &t)
+{
+	buf_stream out;
+	term_to_binary(t, &out);
+	buf_input_stream inp;
+	inp.buffer=std::move(out.buffer);
+	return binary_to_term(&inp);
+}
+
 bool erlang::deep_eq(const erl_type_t &l, const erl_type_t &r)
 {
 	if (l.which() != r.which())
@@ -542,12 +555,20 @@ struct SOFADB_LOCAL printer_visitor : public boost::static_visitor<>
 
 	void operator()(const binary_ptr_t &bin) const
 	{
-		str_ << "<<\"";
+		bool as_str=true;
+		for(size_t f=0;f<bin->binary_.size() && as_str;++f)
+			if (!isalnum(bin->binary_.at(f)))
+				as_str=false;
+
+		str_ << (as_str ? "<<\"" : "<<");
 		for(size_t f=0;f<bin->binary_.size();++f)
 		{
-			str_ << bin->binary_.at(f);
+			if (as_str)
+				str_ << bin->binary_.at(f);
+			else
+				str_ << (f==0? "" : ",") << (int) bin->binary_.at(f);
 		}
-		str_ << "\">>";
+		str_ << (as_str ? "\">>" : ">>");
 	}
 };
 

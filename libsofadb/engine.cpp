@@ -1,23 +1,95 @@
 #include "engine.h"
 #include "leveldb/db.h"
 #include <openssl/md5.h>
-#include <boost/array.hpp>
 #include <time.h>
+#include <boost/lexical_cast.hpp>
 #include "erlang_compat.h"
 #include "errors.h"
 
+#include <iostream>
 using namespace sofadb;
 using namespace leveldb;
 using namespace erlang;
 
 const std::string DbEngine::SYSTEM_DB("_sys");
 const std::string DbEngine::DATA_DB("_data");
+const revision_info_t revision_info_t::empty_revision;
 
-void calculate_hash(std::string str, boost::array<uint8_t, 16> &res)
+std::string sofadb::calculate_hash(const std::vector<unsigned char> &arr)
 {
-	assert(res.size()==MD5_DIGEST_LENGTH);
-	MD5(reinterpret_cast<const unsigned char*>(str.data()), str.size(),
-		res.data());
+	static const char alphabet[17]="0123456789abcdef";
+
+	unsigned char res[MD5_DIGEST_LENGTH+1]={0};
+	MD5(arr.data(), arr.size(), res);
+
+	std::string str_res;
+	str_res.reserve(MD5_DIGEST_LENGTH*2+1);
+	for(int f=0;f<MD5_DIGEST_LENGTH;++f)
+	{
+		str_res.push_back(alphabet[res[f]/16]);
+		str_res.push_back(alphabet[res[f]%16]);
+	}
+	return str_res;
+}
+
+revision_info_t::revision_info_t(const std::string &rev)
+{
+	size_t pos = rev.find('-');
+	if (pos==std::string::npos || pos==0 || pos==rev.size()-1)
+		err(result_code_t::sWrongRevision) << "Invalid revision: " << rev;
+	std::string rev_num = rev.substr(0, pos);
+	std::string rev_id = rev.substr(pos);
+
+	if (rev_num.find_first_not_of("0123456789")!=std::string::npos)
+		err(result_code_t::sWrongRevision) << "Invalid revision num: " << rev;
+
+	id_ = boost::lexical_cast<uint32_t>(rev_num);
+	rev_ = std::move(rev_id);
+}
+
+std::string revision_info_t::to_string() const
+{
+	std::stringstream s;
+	s << id_ << '-' << rev_;
+	return s.str();
+}
+
+void revision_t::calculate_revision()
+{
+	//[Deleted, OldStart, OldRev, Body, Atts2]
+	list_ptr_t head=(list_t::make());
+	list_ptr_t lst=head;
+	lst->val_ = deleted_ ? atom_t::TRUE : atom_t::FALSE;
+	lst->next_ = list_t::make(); lst=lst->next_;
+
+	lst->val_ = BigInteger(previous_rev_.id_);
+	lst->next_ = list_t::make(); lst=lst->next_;
+
+	if (previous_rev_.id_!=0)
+		lst->val_ = binary_t::make_from_string(previous_rev_.rev_);
+	else
+		lst->val_ = BigInteger(0);
+	lst->next_ = list_t::make(); lst=lst->next_;
+
+	lst->val_ = json_body_;
+	lst->next_ = list_t::make(); lst=lst->next_;
+
+	lst->val_ = erl_nil_t(); //TODO: attachments
+
+	utils::buf_stream str;
+	term_to_binary(head, &str);
+
+	revision_info_t new_rev;
+	new_rev.id_ = previous_rev_.id_ + 1;
+	new_rev.rev_ = calculate_hash(str.buffer);
+
+	binary_ptr_t bin=binary_t::make();
+	bin->binary_ = str.buffer;
+
+	std::cout << "Hash: " << new_rev.rev_ << " for "
+			  << erl_type_t(head) << std::endl;
+	std::cout << "Binary is " << erl_type_t(bin) << std::endl;
+	rev_ = std::move(new_rev);
 }
 
 DbEngine::DbEngine(const std::string &filename, bool temporary)
@@ -44,29 +116,22 @@ DbEngine::~DbEngine()
 		DestroyDB(filename_, Options());
 }
 
-Database::Database(DbEngine *parent,
-		 time_t created_on, const std::string &name)
-	: parent_(parent), created_on_(created_on), name_(name), closed_(false)
+Database::Database(DbEngine *parent, const std::string &name)
+	: parent_(parent), closed_(false), name_(name)
 {
+	json_meta_=create_submap();
+	//Instance start time is in nanoseconds
+	put_val(json_meta_, "instance_start_time") = BigInteger(time(NULL))*100000;
+	put_val(json_meta_, "db_name") = binary_t::make_from_string(name);
 }
 
-//Database::Database(DbEngine *parent,
-//				   const json_spirit::Object &json)
-//{
-//	closed_=false;
-//	parent_=parent;
-//	name_=json_spirit::get(json, "name").get_str();
-//	created_on_=json_spirit::get(json, "created_on").get_int();
-//}
-
-//json_spirit::Object Database::to_json() const
-//{
-//	json_spirit::Object	res;
-//	res.push_back(json_spirit::Pair("name", name_));
-//	res.push_back(json_spirit::Pair("created_on",
-//									json_spirit::Value((int)created_on_)));
-//	return res;
-//}
+Database::Database(DbEngine *parent,
+				   const erl_type_t &meta)
+	: parent_(parent), closed_(false)
+{
+	json_meta_ = parse_json(json_to_string(meta));
+	name_ = binary_to_string(get_val(json_meta_, "db_name"));
+}
 
 database_ptr DbEngine::create_a_database(const std::string &name)
 {
@@ -82,21 +147,15 @@ database_ptr DbEngine::create_a_database(const std::string &name)
 	std::string out;
 	if (keystore_->Get(opts, db_info, &out).ok())
 	{
-//		json_spirit::Value val;
-//		json_spirit::read_or_throw(out, val);
-//		database_ptr res(new Database(this, val.get_obj()));
-//		databases_[name]=res;
-//		return res;
+		database_ptr res(new Database(this, parse_json(out)));
+		databases_[name]=res;
+		return res;
 	} else
 	{
 		WriteOptions w;
-
-		database_ptr res(new Database(this, time(NULL), name));
-
-//		std::string jval(json_spirit::write_formatted(res->to_json()));
-//		keystore_->Put(w, db_info, jval);
-
+		database_ptr res(new Database(this, name));
 		databases_[name]=res;
+		keystore_->Put(w, db_info, json_to_string(res->get_meta()));
 		return res;
 	}
 }
@@ -112,25 +171,71 @@ void Database::check_closed()
 		err(result_code_t::sError) << "Database " << name_ << " is closed";
 }
 
-revision_ptr Database::put(const std::string &id, const maybe_string_t& rev,
-						   const std::string &doc_str, bool batched)
+std::pair<erl_type_t,erl_type_t>
+	Database::sanitize_and_get_reserved_words(const erl_type_t &tp)
 {
-	guard_t p(parent_->mutex_);
+	erl_type_t sanitized = create_submap();
+	erl_type_t special = create_submap();
+
+	list_ptr_t prev;
+	for(list_ptr_t cur=get_json_list(tp); cur; cur=cur->next_)
+	{
+		tuple_ptr_t ptr=boost::get<tuple_ptr_t>(cur->val_);
+		assert(ptr->elements_.size()==2);
+
+		const binary_ptr_t &key=boost::get<binary_ptr_t>(ptr->elements_.at(0));
+
+		erl_type_t val=deep_copy(ptr->elements_.at(1)); //Make a deep copy
+		if (key->binary_.at(0)=='_')
+			put_val(special, binary_to_string(key)) = std::move(val);
+		else
+			put_val(sanitized, binary_to_string(key)) = std::move(val);
+	}
+
+	return std::make_pair(std::move(sanitized), std::move(special));
+}
+
+revision_ptr Database::put(const std::string &id, const maybe_string_t& old_rev,
+						   const erlang::erl_type_t &json, bool batched)
+{
 	guard_t g(mutex_);
 	check_closed();
 
-//	Value doc;
-//	read_or_throw(doc_str, doc);
+	ReadOptions opts;
+	WriteOptions wo;
+	wo.sync = !batched;
 
 	//Ok. That gets interesting!
 	//Let's roll!
-//	Value val=find_value(doc.get_obj(), "_id");
-//	if (!val.is_null() && val.get_str()!=id)
-//		err(result_code_t::sError) << "Two different IDs specified";
+	revision_ptr rev(new revision_t());
 
-	std::string docpath=DbEngine::DATA_DB+"/"+name_+
-			DbEngine::DB_SEPARATOR+id;
-	//parent_->keystore_->Get
+	rev->id_ = id;
+	rev->deleted_ = false;
+	if (old_rev)
+		rev->previous_rev_=revision_info_t(old_rev.get());
+	else
+		rev->previous_rev_ = revision_info_t::empty_revision;
+
+	std::pair<erl_type_t, erl_type_t> pair =
+			sanitize_and_get_reserved_words(json);
+	rev->json_body_ = std::move(pair.first);
+	//TODO: attachments
+	rev->calculate_revision();
+
+	std::string doc_rev_path=DbEngine::DATA_DB+"/"+name_+
+			DbEngine::DB_SEPARATOR+id+DbEngine::REV_SEPARATOR;
+
+	std::string prev_rev;
+	if (parent_->keystore_->Get(opts, doc_rev_path, &prev_rev).ok())
+	{
+		//There's an existing document.
+	} else
+	{
+		//Totaly new document! Calculate its revision
+		std::string cur_rev(rev->rev_.get().to_string());
+		parent_->keystore_->Put(wo, doc_rev_path+"tip", cur_rev);
+		//parent_->keystore_->Put(wo, doc_rev_path+cur_rev, bin
+	}
 
 //	EZLOGGERSTREAM << "Reading " << docpath << std::endl;
 	return revision_ptr();

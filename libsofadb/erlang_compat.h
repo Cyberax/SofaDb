@@ -33,6 +33,8 @@ namespace erlang {
 
 	struct atom_t
 	{
+		SOFADB_PUBLIC static const atom_t TRUE;
+		SOFADB_PUBLIC static const atom_t FALSE;
 		std::string name_;
 	};
 
@@ -85,6 +87,7 @@ namespace erlang {
 		SOFADB_PUBLIC static tuple_ptr_t make();
 	};
 
+	SOFADB_PUBLIC erl_type_t deep_copy(const erl_type_t &t);
 	SOFADB_PUBLIC bool deep_eq (const erl_type_t &l, const erl_type_t &r);
 	inline bool deep_ne(const erl_type_t &l, const erl_type_t &r)
 	{
@@ -96,7 +99,8 @@ namespace erlang {
 	// http://www.erlang.org/doc/apps/erts/erl_ext_dist.html
 	//and is implemented in otp_src/erts/emulator/beam/external.c
 	//in the OTP source.
-	SOFADB_PUBLIC void term_to_binary(const erl_type_t &term, utils::output_stream *out);
+	SOFADB_PUBLIC void term_to_binary(const erl_type_t &term,
+									  utils::output_stream *out);
 	SOFADB_PUBLIC erl_type_t binary_to_term(utils::input_stream *in);
 
 	SOFADB_PUBLIC std::ostream& operator <<(std::ostream& str,
@@ -112,6 +116,7 @@ namespace erlang {
 
 	SOFADB_PUBLIC erl_type_t& put_val(erl_type_t& tp, const std::string &str);
 	SOFADB_PUBLIC erl_type_t create_submap();
+	SOFADB_PUBLIC list_ptr_t get_json_list(const erl_type_t& tp);
 }; //namespace erlang
 
 #endif // ERLANG_COMPAT_H

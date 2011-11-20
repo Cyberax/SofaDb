@@ -2,6 +2,7 @@
 
 #include "engine.h"
 using namespace sofadb;
+using namespace erlang;
 
 BOOST_AUTO_TEST_CASE(test_database_creation)
 {
@@ -31,6 +32,6 @@ BOOST_AUTO_TEST_CASE(test_database_put)
 
 	database_ptr ptr=engine.create_a_database("test");
 
-//	revision_ptr rev=ptr->put("hello", maybe_string_t(),
-//							  "{\"Hello\" : \"world\"}", true);
+	revision_ptr rev=ptr->put("hello", maybe_string_t(),
+							parse_json("{\"Hello\" : \"world\"}"), true);
 }
