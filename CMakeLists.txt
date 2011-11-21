@@ -8,7 +8,7 @@ ENABLE_TESTING()
 
 SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH}  "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
-#SET(CMAKE_BUILD_TYPE Debug)
+#SET(CMAKE_BUILD_TYPE RelWithDebInfo)
 IF(NOT CMAKE_BUILD_TYPE)
   SET(CMAKE_BUILD_TYPE Debug CACHE STRING
 	  "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel."

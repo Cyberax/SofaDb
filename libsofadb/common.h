@@ -36,4 +36,7 @@
 #include <mutex>
 typedef std::lock_guard<std::recursive_mutex> guard_t;
 
+#include <glog/logging.h>
+#define VLOG_MACRO(lev) if(VLOG_IS_ON(lev)) VLOG(lev)
+
 #endif // COMMON_H

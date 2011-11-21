@@ -104,6 +104,10 @@ namespace erlang {
 	struct tuple_t
 	{
 		std::vector<erl_type_t> elements_;
+		tuple_t()
+		{
+			elements_.reserve(2);
+		}
 
 		SOFADB_PUBLIC static tuple_ptr_t make();
 	};

@@ -6,7 +6,6 @@
 #include <boost/lexical_cast.hpp>
 #include "erlang_compat.h"
 #include "errors.h"
-#include <glog/logging.h>
 
 #include <iostream>
 using namespace sofadb;
@@ -90,7 +89,7 @@ void revision_t::calculate_revision()
 	new_rev.rev_ = calculate_hash(str.buffer);
 
 	binary_ptr_t bin=binary_t::make();
-	bin->binary_ = str.buffer;
+	bin->binary_ = std::move(str.buffer);
 
 	rev_ = std::move(new_rev);
 }
@@ -247,7 +246,7 @@ revision_ptr Database::put(const std::string &id, const maybe_string_t& old_rev,
 	{
 		//Totaly new document! Calculate its revision
 		std::string cur_rev(rev->rev_.get().to_string());
-		LOG(INFO) << "Creating document " << id << " in the database "
+		VLOG_MACRO(1) << "Creating document " << id << " in the database "
 				  << name_ << " revid=" << rev->rev_.get() << std::endl;
 
 		parent_->check(
@@ -273,9 +272,18 @@ void Database::store(const WriteOptions &wo, revision_ptr ptr)
 	put_val(serialized, "atts") = erl_nil; //TODO: attachments
 	put_val(serialized, "data") = ptr->json_body_;
 
-	std::string buf=json_to_string(serialized, false); //TODO: binary format?
+#ifdef BIN_SERIALIZATION
+	utils::buf_stream os; os.buffer.reserve(32);
+	term_to_binary(serialized, &os);
+	Slice sl((const char*)os.buffer.data(), os.buffer.size());
+	const std::vector<unsigned char> &buf=os.buffer;
+#else
+	std::string buf=json_to_string(serialized, false);
+	Slice sl(buf);
+#endif
+
 	parent_->check(
-		parent_->keystore_->Put(wo, doc_data_path, buf));
-	LOG(INFO) << "Created document " << ptr->id_ << " in the database "<< name_
-			  << ", size=" << buf.size();
+		parent_->keystore_->Put(wo, doc_data_path, sl));
+	VLOG_MACRO(1) << "Created document " << ptr->id_ << " in the database "
+				<< name_ << ", size=" << buf.size();
 }

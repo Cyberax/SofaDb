@@ -1,5 +1,6 @@
 #include <boost/test/unit_test.hpp>
 #include "erlang_json.h"
+#include <boost/lexical_cast.hpp>
 
 #include "engine.h"
 using namespace sofadb;
@@ -33,8 +34,13 @@ BOOST_AUTO_TEST_CASE(test_database_put)
 
 	database_ptr ptr=engine.create_a_database("test");
 
-	revision_ptr rev=ptr->put("hello", maybe_string_t(),
-							parse_json("{\"Hello\" : \"world\"}"), true);
+	erl_type_t js=parse_json("{\"Hello\" : \"world\"}");
+//	for(int f=0;f< 100000; ++f)
+//	{
+//		std::string id ="Hello" + boost::lexical_cast<std::string>(f);
+//		revision_ptr rev=ptr->put(id, maybe_string_t(), js, true);
+//	}
 
+	revision_ptr rev=ptr->put("Hello", maybe_string_t(), js, true);
 	BOOST_REQUIRE(rev->rev_.get().rev_ == "2028f9ff8e5094cfc9e4eb8bcca19e83");
 }
