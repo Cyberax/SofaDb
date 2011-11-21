@@ -156,8 +156,9 @@ static int json_end_array(void * ctx)
 		//{"a" : {}}
 		//so we need to back off and replace it with erl_nil_t()
 		*(std::get<2>(ent)) = erl_nil_t();
-	} else
-		advance_list_with(proc, erl_nil_t()); //Terminate a proper list
+	}
+//	else
+//		advance_list_with(proc, erl_nil_t()); //Terminate a proper list
 
 	proc->stack_.pop_back();
 
@@ -286,8 +287,8 @@ static void print_element(boost::shared_ptr<yajl_gen_t> ptr,
 		for(list_ptr_t cur=boost::get<list_ptr_t>(tp); !!cur; cur=cur->next_)
 		{
 			//Tail of a proper list
-			if (!cur->next_ && cur->val_.type()==typeid(erl_nil_t))
-				break;
+//			if (!cur->next_ && cur->val_.type()==typeid(erl_nil_t))
+//				break;
 
 			print_element(ptr, cur->val_);
 		}

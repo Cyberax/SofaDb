@@ -15,6 +15,18 @@ using namespace utils;
 const atom_t atom_t::TRUE={"true"};
 const atom_t atom_t::FALSE={"false"};
 
+const list_ptr_t erlang::erl_nil_t(list_t::make());
+class nil_list_creator
+{
+public:
+	nil_list_creator()
+	{
+		erl_nil_t->val_ = boost::blank();
+	}
+	~nil_list_creator()
+	{
+	}
+} nil_list_initializer;
 
 static erl_type_t read_term(utils::input_stream *in);
 
@@ -53,9 +65,9 @@ struct SOFADB_LOCAL term_to_binary_visitor : public boost::static_visitor<>
 {
 	output_stream *out;
 
-	void operator()(const erl_nil_t &i) const
+	void operator()(const boost::blank &) const
 	{
-		out->write_byte(NIL_EXT); //NIL_EXT
+		throw std::invalid_argument("Blank term is passed to term_to_binary");
 	}
 
 	void operator()(const atom_t &i) const
@@ -144,6 +156,11 @@ struct SOFADB_LOCAL term_to_binary_visitor : public boost::static_visitor<>
 	void operator()(const list_ptr_t &ptr) const
 	{
 		assert(ptr);
+		if (ptr == erl_nil_t)
+		{
+			out->write_byte(NIL_EXT); //NIL_EXT
+			return;
+		}
 
 		size_t list_size = 0;
 		list_ptr_t cur=ptr;
@@ -227,73 +244,79 @@ static erl_type_t read_tuple(utils::input_stream *in, uint32_t ln)
 	return res;
 }
 
-static std::tuple<list_ptr_t, list_ptr_t> unwind_string(const std::string & str)
-{
-	auto list_res=list_t::make();
-	auto list_head=list_res;
-	for(uint32_t pos=0; pos<str.length(); ++pos)
-	{
-		unsigned char ch=str[pos];
-		list_res->val_=BigInteger(ch);
-		list_res->next_=list_t::make();
-		list_res=list_res->next_;
-	}
-	return std::make_tuple(list_head, list_res);
-}
+//static std::tuple<list_ptr_t, list_ptr_t> unwind_string(
+//				const std::string & str)
+//{
+//	auto list_res=list_t::make();
+//	auto list_head=list_res;
+//	for(uint32_t pos=0; pos<str.length(); ++pos)
+//	{
+//		unsigned char ch=str[pos];
+//		list_res->val_=BigInteger(ch);
+//		list_res->next_=list_t::make();
+//		list_res=list_res->next_;
+//	}
+//	return std::make_tuple(list_head, list_res);
+//}
 
 static erl_type_t read_list(utils::input_stream *in)
 {
 	uint32_t ln=in->read_uint4();
 
 	std::string str_res;
-	list_ptr_t list_res, list_head;
-	bool accumulating_string=true;
+	list_ptr_t list_res=list_t::make();
+	list_ptr_t list_head = list_res;
+//	bool accumulating_string=true;
 
 	for(uint32_t f=0;f<ln;++f)
 	{
 		erl_type_t tp=read_term(in);
-		const BigInteger *val=boost::get<BigInteger>(&tp);
-		bool is_char=val && (*val)>=0 && (*val)<=UCHAR_MAX;
+//		const BigInteger *val=boost::get<BigInteger>(&tp);
+//		bool is_char=val && (*val)>=0 && (*val)<=UCHAR_MAX;
 
-		if (is_char && accumulating_string)
-		{
-			str_res.push_back(val->toUnsignedChar());
-			continue;
-		}
+//		if (is_char && accumulating_string)
+//		{
+//			str_res.push_back(val->toUnsignedChar());
+//			continue;
+//		}
 
-		if (!is_char && accumulating_string)
-		{
-			//Unwind the string into list
-			accumulating_string=false;
-			auto res=unwind_string(str_res);
-			list_head=std::get<0>(res);
-			list_res=std::get<1>(res);
-		}
+//		if (!is_char && accumulating_string)
+//		{
+//			//Unwind the string into list
+//			accumulating_string=false;
+//			auto res=unwind_string(str_res);
+//			list_head=std::get<0>(res);
+//			list_res=std::get<1>(res);
+//		}
 
-		list_res->val_=tp;
+		list_res->val_=std::move(tp);
 		list_res->next_=list_t::make();
 		list_res=list_res->next_;
 	}
 
 	erl_type_t tp=read_term(in); //tail
-	if (accumulating_string)
-	{
-		if (tp.type()!=typeid(erl_nil_t))
-		{
-			//The tail is not of type NIL, so we have to unwind the string
-			accumulating_string=false;
-			auto res=unwind_string(str_res);
-			list_head=std::get<0>(res);
-			list_res=std::get<1>(res);
-			list_res->val_=tp;
-		}
-	} else
-		list_res->val_=tp;
+//	if (accumulating_string)
+//	{
+//		if (tp.type()!=typeid(list_ptr_t) ||
+//				boost::get<list_ptr_t>(tp) != erl_nil_t)
+//		{
+//			//The tail is not of type NIL, so we have to unwind the string
+//			accumulating_string=false;
+//			auto res=unwind_string(str_res);
+//			list_head=std::get<0>(res);
+//			list_res=std::get<1>(res);
+//			list_res->val_=tp;b
+//		}
+//	} else
+//		list_res->val_=tp;
 
-	if (accumulating_string)
-		return str_res;
-	else
-		return list_head;
+//	if (accumulating_string)
+//		return str_res;
+//	else
+//		return list_head;
+
+	list_res->val_=tp;
+	return list_head;
 }
 
 static erl_type_t read_term(utils::input_stream *in)
@@ -302,7 +325,7 @@ static erl_type_t read_term(utils::input_stream *in)
 	switch(tag)
 	{
 	case NIL_EXT:
-		return erl_nil_t();
+		return erl_nil_t;
 	case ATOM_EXT:
 		{
 			uint16_t ln=in->read_uint2();
@@ -348,10 +371,20 @@ static erl_type_t read_term(utils::input_stream *in)
 	case STRING_EXT:
 		{
 			uint16_t ln=in->read_uint2();
-			std::string str;
-			str.resize(ln);
-			in->read(&str[0], ln);
-			return str;
+			list_ptr_t res=list_t::make();
+			list_ptr_t head=res;
+			for(size_t f=0;f<ln;++f)
+			{
+				res->val_=BigInteger(in->read_byte());
+				res->next_ = list_t::make();
+				res=res->next_;
+			}
+			return head;
+
+//			std::string str;
+//			str.resize(ln);
+//			in->read(&str[0], ln);
+//			return str;
 		}
 	case SMALL_TUPLE_EXT:
 		{
@@ -399,7 +432,7 @@ struct SOFADB_LOCAL equality_visitor : public boost::static_visitor<>
 
 	equality_visitor(const erl_type_t &r) : r_(r), res_(false) {}
 
-	void operator()(const erl_nil_t &i)
+	void operator()(const boost::blank &)
 	{
 		res_=true;
 	}
@@ -502,7 +535,7 @@ struct SOFADB_LOCAL printer_visitor : public boost::static_visitor<>
 	std::ostream &str_;
 	printer_visitor(std::ostream &str) : str_(str) {}
 
-	void operator()(const erl_nil_t &i)
+	void operator()(const boost::blank &) const
 	{
 		str_ << "[]";
 	}
@@ -529,6 +562,12 @@ struct SOFADB_LOCAL printer_visitor : public boost::static_visitor<>
 
 	void operator()(const list_ptr_t &ptr)
 	{
+		if (ptr == erl_nil_t)
+		{
+			str_ << "[]";
+			return;
+		}
+
 		list_ptr_t cur=ptr;
 		str_ << "[";
 		while(!!cur)
@@ -536,6 +575,10 @@ struct SOFADB_LOCAL printer_visitor : public boost::static_visitor<>
 			if (cur!=ptr)
 				str_ << ", ";
 			cur->val_.apply_visitor(*this);
+
+			if (cur->next_ == erl_nil_t) //Silently eat the last nil
+				break;
+
 			cur=cur->next_;
 		}
 		str_ << "]";

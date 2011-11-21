@@ -30,7 +30,7 @@ buf_stream test(const erl_type_t & erl)
 BOOST_AUTO_TEST_CASE(test_nil)
 {
 	//rp(term_to_binary([])).
-	CHECK(test(erl_nil_t()), buf_t({131,106}));
+	CHECK(test(erl_nil_t), buf_t({131,106}));
 }
 
 BOOST_AUTO_TEST_CASE(test_atom)
@@ -168,30 +168,30 @@ BOOST_AUTO_TEST_CASE(test_int_big)
 				0,0,0,0,0,0,0,0,0,0,0,0,1}));
 }
 
-BOOST_AUTO_TEST_CASE(test_string)
-{
-	std::string s(65534, 'c');
-	buf_t etalon={131,107,255,254};
-	etalon.insert(etalon.end(), 65534, 99);
+//BOOST_AUTO_TEST_CASE(test_string)
+//{
+//	std::string s(65534, 'c');
+//	buf_t etalon={131,107,255,254};
+//	etalon.insert(etalon.end(), 65534, 99);
 
-	//term_to_binary(string:copies("c", 65534)).
-	CHECK(test(s), etalon);
-}
+//	//term_to_binary(string:copies("c", 65534)).
+//	CHECK(test(s), etalon);
+//}
 
-BOOST_AUTO_TEST_CASE(test_string_big)
-{
-	std::string s(65535, 'c');
-	buf_t etalon={131,108,0,0,255,255};
-	for(int f=0;f<65535;++f)
-	{
-		etalon.push_back(97);
-		etalon.push_back(99);
-	}
-	etalon.push_back(106);
+//BOOST_AUTO_TEST_CASE(test_string_big)
+//{
+//	std::string s(65535, 'c');
+//	buf_t etalon={131,108,0,0,255,255};
+//	for(int f=0;f<65535;++f)
+//	{
+//		etalon.push_back(97);
+//		etalon.push_back(99);
+//	}
+//	etalon.push_back(106);
 
-	//term_to_binary(string:copies("c", 65535)).
-	CHECK(test(s), etalon);
-}
+//	//term_to_binary(string:copies("c", 65535)).
+//	CHECK(test(s), etalon);
+//}
 
 BOOST_AUTO_TEST_CASE(test_list_proper)
 {
@@ -199,16 +199,16 @@ BOOST_AUTO_TEST_CASE(test_list_proper)
 	lst->val_=BigInteger(123);
 
 	list_ptr_t lst2(new list_t());
-	lst2->val_="Helo";
+	lst2->val_=atom_t {"atest"};
 	lst->next_=lst2;
 
 	list_ptr_t lst3(new list_t());
-	lst3->val_=erl_nil_t();
+	lst3->val_=erl_nil_t;
 	lst2->next_=lst3;
 
-	//rp(term_to_binary([123, "Helo"])).
+	//rp(term_to_binary([123, atest])).
 	CHECK(test(lst),
-		  buf_t({131,108,0,0,0,2,97,123,107,0,4,72,101,108,111,106}));
+		  buf_t({131,108,0,0,0,2,97,123,100,0,5,97,116,101,115,116,106}));
 }
 
 BOOST_AUTO_TEST_CASE(test_list_improper)
@@ -320,18 +320,18 @@ BOOST_AUTO_TEST_CASE(test_empty_doc)
 	lst2->next_=lst3;
 
 	tuple_ptr_t tpl(new tuple_t());
-	tpl->elements_.push_back(erl_nil_t());
+	tpl->elements_.push_back(erl_nil_t);
 
 	list_ptr_t lst4(new list_t());
 	lst4->val_=tpl;
 	lst3->next_=lst4;
 
 	list_ptr_t lst5(new list_t());
-	lst5->val_=erl_nil_t();
+	lst5->val_=erl_nil_t;
 	lst4->next_=lst5;
 
 	list_ptr_t lst6(new list_t());
-	lst6->val_=erl_nil_t();
+	lst6->val_=erl_nil_t;
 	lst5->next_=lst6;
 
 	//rp(term_to_binary([false, 0, 0, {[]}, []])).
@@ -348,54 +348,54 @@ BOOST_AUTO_TEST_CASE(test_binary)
 		  buf_t({131,109,0,0,0,5,72,101,108,108,111}));
 }
 
-static erl_type_t roundtrip(const std::string &js)
-{
-	erl_type_t res=parse_json(js);
-	erl_type_t res2=parse_json(json_to_string(res));
-	BOOST_REQUIRE(deep_eq(res, res2));
-	return res2;
-}
+//static erl_type_t roundtrip(const std::string &js)
+//{
+//	erl_type_t res=parse_json(js);
+//	erl_type_t res2=parse_json(json_to_string(res));
+//	BOOST_REQUIRE(deep_eq(res, res2));
+//	return res2;
+//}
 
-BOOST_AUTO_TEST_CASE(test_parse_json)
-{
-	roundtrip("{\"H\" : \"w\", \"this\" : [\"is\", {\"a\" : \"test\"}]}");
+//BOOST_AUTO_TEST_CASE(test_parse_json)
+//{
+//	roundtrip("{\"H\" : \"w\", \"this\" : [\"is\", {\"a\" : \"test\"}]}");
 
-	roundtrip("{\"Hello\" : {\"a\" : null}}");
-	roundtrip("{\"Hello\" : {\"a\" : [{}]}}");
-	roundtrip("{\"Hello\" : [23123.123000]}");
-	roundtrip("{\"Hello\" : [233452340523409580923485092348523309850234950923450]}");
+//	roundtrip("{\"Hello\" : {\"a\" : null}}");
+//	roundtrip("{\"Hello\" : {\"a\" : [{}]}}");
+//	roundtrip("{\"Hello\" : [23123.123000]}");
+//	roundtrip("{\"Hello\" : [233452340523409580923485092348523309850234950923450]}");
 
-	roundtrip("{\"Hello\" : \"world\", \"this\" : [\"is\",\"good\"], "
-			   "\"tst\" : [\"a\", {\"1\" : \"2\"}], "
-			   "\"val\" : true, "
-			   "\"larg\" : 233452340523409580923485092348523309850234950923450"
-			   "}");
-}
+//	roundtrip("{\"Hello\" : \"world\", \"this\" : [\"is\",\"good\"], "
+//			   "\"tst\" : [\"a\", {\"1\" : \"2\"}], "
+//			   "\"val\" : true, "
+//			   "\"larg\" : 233452340523409580923485092348523309850234950923450"
+//			   "}");
+//}
 
-BOOST_AUTO_TEST_CASE(test_parse_json2)
-{
-	erl_type_t res=parse_json("{\"Hello\" : \"world\"}");
+//BOOST_AUTO_TEST_CASE(test_parse_json2)
+//{
+//	erl_type_t res=parse_json("{\"Hello\" : \"world\"}");
 
-	//rp(term_to_binary([{<<"Hello">>, <<"world">>}])).
-	CHECK(test(res),
-		  buf_t({131,108,0,0,0,1,104,2,109,0,0,0,5,72,101,108,108,111,
-				109,0,0,0,5,119,111,114,108,100,106}));
-}
+//	//rp(term_to_binary([{<<"Hello">>, <<"world">>}])).
+//	CHECK(test(res),
+//		  buf_t({131,108,0,0,0,1,104,2,109,0,0,0,5,72,101,108,108,111,
+//				109,0,0,0,5,119,111,114,108,100,106}));
+//}
 
-BOOST_AUTO_TEST_CASE(test_programmatic_json)
-{
-	erl_type_t root=create_submap();
-	put_val(root, "Hello")=binary_t::make_from_string("world");
-	put_val(root, "test") = erl_nil_t();
+//BOOST_AUTO_TEST_CASE(test_programmatic_json)
+//{
+//	erl_type_t root=create_submap();
+//	put_val(root, "Hello")=binary_t::make_from_string("world");
+//	put_val(root, "test") = erl_nil_t;
 
-	erl_type_t sub = create_submap();
-	put_val(root, "sub") = sub;
-	put_val(sub, "a") = BigInteger(1234214);
+//	erl_type_t sub = create_submap();
+//	put_val(root, "sub") = sub;
+//	put_val(sub, "a") = BigInteger(1234214);
 
-	erl_type_t js=parse_json("{"
-							 "\"sub\" : {\"a\" : 1234214}, "
-							 "\"test\": null,"
-							 "\"Hello\": \"world\""
-							 "}");
-	BOOST_REQUIRE(deep_eq(js, root));
-}
+//	erl_type_t js=parse_json("{"
+//							 "\"sub\" : {\"a\" : 1234214}, "
+//							 "\"test\": null,"
+//							 "\"Hello\": \"world\""
+//							 "}");
+//	BOOST_REQUIRE(deep_eq(js, root));
+//}

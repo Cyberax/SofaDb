@@ -38,8 +38,6 @@ namespace erlang {
 		std::string name_;
 	};
 
-	typedef boost::blank erl_nil_t;
-
 	struct list_t;
 	typedef boost::shared_ptr<list_t> list_ptr_t;
 
@@ -50,11 +48,10 @@ namespace erlang {
 	typedef boost::shared_ptr<binary_t> binary_ptr_t;
 
 	typedef boost::variant<
-		erl_nil_t,
+		boost::blank,
 		atom_t,
 		double,
 		BigInteger,
-		std::string,
 		list_ptr_t,
 		tuple_ptr_t,
 		binary_ptr_t
@@ -66,7 +63,11 @@ namespace erlang {
 		erl_type_t val_;
 
 		SOFADB_PUBLIC static list_ptr_t make();
+
+		friend class nil_list_creator;
 	};
+
+	SOFADB_PUBLIC extern const list_ptr_t erl_nil_t;
 
 	struct binary_t
 	{

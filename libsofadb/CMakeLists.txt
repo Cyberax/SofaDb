@@ -1,9 +1,9 @@
 PROJECT(libsofadb)
 
 FILE(GLOB libsofadb_SRCS
-	engine.cpp
+#	engine.cpp
 	erlang_compat.cpp
-	erlang_json.cpp
+#	erlang_json.cpp
 	errors.cpp
 )
 

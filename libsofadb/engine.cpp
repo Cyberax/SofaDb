@@ -74,7 +74,7 @@ void revision_t::calculate_revision()
 	lst->val_ = json_body_;
 	lst->next_ = list_t::make(); lst=lst->next_;
 
-	lst->val_ = erl_nil_t(); //TODO: attachments
+	lst->val_ = erl_nil_t; //TODO: attachments
 
 	utils::buf_stream str;
 	term_to_binary(head, &str);
