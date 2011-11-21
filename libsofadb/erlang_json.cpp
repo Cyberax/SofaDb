@@ -248,8 +248,6 @@ erl_type_t erlang::parse_json(const std::string &str)
 	return head->val_;
 }
 
-static yajl_gen_config json_get_config = {1, "    "};
-
 struct printer_context
 {
 	std::string res_;
@@ -376,11 +374,12 @@ static void print_map(boost::shared_ptr<yajl_gen_t> ptr, const erl_type_t &js)
 	check_status(yajl_gen_map_close(ptr.get()));
 }
 
-std::string erlang::json_to_string(const erl_type_t &js)
+std::string erlang::json_to_string(const erl_type_t &js, bool pretty)
 {
 	printer_context ctx;
+	yajl_gen_config json_gen_config = {pretty?1:0, " "};
 	auto ptr=boost::shared_ptr<yajl_gen_t>(
-				yajl_gen_alloc2(&json_print, &json_get_config,
+				yajl_gen_alloc2(&json_print, &json_gen_config,
 								&alloc_funcs, &ctx),
 				printer_deleter());
 

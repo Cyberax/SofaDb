@@ -51,6 +51,9 @@ revision_info_t::revision_info_t(const std::string &rev)
 
 std::string revision_info_t::to_string() const
 {
+	if (id_ == 0)
+		return "";
+
 	std::stringstream s;
 	s << id_ << '-' << rev_;
 	return s.str();
@@ -114,6 +117,13 @@ DbEngine::~DbEngine()
 	this->keystore_.reset();
 	if (temporary_)
 		DestroyDB(filename_, Options());
+}
+
+void DbEngine::check(const leveldb::Status &status)
+{
+	if (status.ok())
+		return;
+	err(result_code_t::sError) << status.ToString();
 }
 
 Database::Database(DbEngine *parent, const std::string &name)
@@ -224,6 +234,7 @@ revision_ptr Database::put(const std::string &id, const maybe_string_t& old_rev,
 	rev->json_body_ = std::move(pair.first);
 	//TODO: attachments
 	rev->calculate_revision();
+	assert(rev->rev_);
 
 	std::string doc_rev_path=DbEngine::DATA_DB+"/"+name_+
 			DbEngine::DB_SEPARATOR+id+DbEngine::REV_SEPARATOR;
@@ -236,10 +247,35 @@ revision_ptr Database::put(const std::string &id, const maybe_string_t& old_rev,
 	{
 		//Totaly new document! Calculate its revision
 		std::string cur_rev(rev->rev_.get().to_string());
-		parent_->keystore_->Put(wo, doc_rev_path+"tip", cur_rev);
-		//parent_->keystore_->Put(wo, doc_rev_path+cur_rev, bin
+		LOG(INFO) << "Creating document " << id << " in the database "
+				  << name_ << " revid=" << rev->rev_.get() << std::endl;
+
+		parent_->check(
+					parent_->keystore_->Put(wo, doc_rev_path+"tip", cur_rev));
+
+		//Store the document itself
+		store(wo, rev);
 	}
 
-	LOG(INFO) << "Reading " << doc_rev_path << std::endl;
-	return revision_ptr();
+	return rev;
+}
+
+void Database::store(const WriteOptions &wo, revision_ptr ptr)
+{
+	std::string doc_data_path=DbEngine::DATA_DB+"/"+name_+
+			DbEngine::DB_SEPARATOR+ptr->id_+DbEngine::REV_SEPARATOR+
+			ptr->rev_.get().to_string();
+
+	erl_type_t serialized = create_submap();
+	put_val(serialized, "deleted") = atom_t::convert(ptr->deleted_);
+	put_val(serialized, "prev_revid") = binary_t::make_from_string(
+			ptr->previous_rev_.to_string());
+	put_val(serialized, "atts") = erl_nil; //TODO: attachments
+	put_val(serialized, "data") = ptr->json_body_;
+
+	std::string buf=json_to_string(serialized, false); //TODO: binary format?
+	parent_->check(
+		parent_->keystore_->Put(wo, doc_data_path, buf));
+	LOG(INFO) << "Created document " << ptr->id_ << " in the database "<< name_
+			  << ", size=" << buf.size();
 }

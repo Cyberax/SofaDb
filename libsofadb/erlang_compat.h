@@ -36,6 +36,20 @@ namespace erlang {
 		SOFADB_PUBLIC static const atom_t TRUE;
 		SOFADB_PUBLIC static const atom_t FALSE;
 		std::string name_;
+
+		static const atom_t& convert(bool val)
+		{
+			return val ? TRUE : FALSE;
+		}
+		operator bool () const
+		{
+			if (name_ == FALSE.name_)
+				return false;
+			else if(name_==TRUE.name_)
+				 return true;
+			else
+				assert(false);
+		}
 	};
 
 	struct string_opt_t

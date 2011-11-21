@@ -9,6 +9,8 @@
 
 namespace leveldb {
 	class DB;
+	class Status;
+	class WriteOptions;
 	typedef boost::shared_ptr<DB> db_ptr_t;
 };
 
@@ -39,6 +41,14 @@ namespace sofadb {
 		SOFADB_PUBLIC std::string to_string() const;
 	};
 
+	inline std::ostream& operator << (std::ostream& str,
+									  const revision_info_t &r)
+	{
+		str << r.to_string();
+		return str;
+	}
+
+
 	/**
 		CouchDB keeps documents in the following format:
 		[Deleted, OldStart, OldRev, Body, Atts2] where
@@ -61,7 +71,7 @@ namespace sofadb {
 		file_name and content_type are binaries and md5	is a binary with the
 		hash of the content.
 
-		Hash is computed using a braindead algorithm and represents MD5 of the
+		Hash is computed using a curious algorithm and represents MD5 of the
 		original attachment OR of its zlib-compressed copy. No compression
 		flags are stored, but by default the following documents are compressed
 		by zlib with 8 compression level:
@@ -142,6 +152,8 @@ namespace sofadb {
 		void check_closed();
 		std::pair<erlang::erl_type_t, erlang::erl_type_t>
 			sanitize_and_get_reserved_words(const erlang::erl_type_t &tp);
+
+		void store(const leveldb::WriteOptions &wo, revision_ptr ptr);
 	};
 	typedef boost::shared_ptr<Database> database_ptr;
 
@@ -152,7 +164,7 @@ namespace sofadb {
 		const static std::string SYSTEM_DB;
 		const static std::string DATA_DB;
 		const static char DB_SEPARATOR='!';
-		const static char REV_SEPARATOR=':';
+		const static char REV_SEPARATOR='@';
 
 		leveldb::db_ptr_t keystore_;
 		bool temporary_;
@@ -167,6 +179,9 @@ namespace sofadb {
 
 		SOFADB_PUBLIC void checkpoint();
 		SOFADB_PUBLIC database_ptr create_a_database(const std::string &name);
+
+	private:
+		void check(const leveldb::Status &status);
 	};
 };
 

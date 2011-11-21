@@ -1,0 +1,13 @@
+PROJECT(tools)
+
+FILE(GLOB dumpldb_SRCS
+	dumpldb.cpp
+)
+
+INCLUDE_DIRECTORIES(.)
+INCLUDE_DIRECTORIES(${libsofadb_SOURCE_DIR})
+INCLUDE_DIRECTORIES(${LevelDb_INCLUDE})
+
+ADD_EXECUTABLE(dumpldb ${dumpldb_SRCS})
+TARGET_LINK_LIBRARIES(dumpldb leveldb pthread)
+
