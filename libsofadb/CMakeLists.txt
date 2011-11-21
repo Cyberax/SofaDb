@@ -3,7 +3,7 @@ PROJECT(libsofadb)
 FILE(GLOB libsofadb_SRCS
 #	engine.cpp
 	erlang_compat.cpp
-#	erlang_json.cpp
+	erlang_json.cpp
 	errors.cpp
 )
 
@@ -12,6 +12,7 @@ FILE(GLOB libsofadb_INCLUDES
 	common.h
 	engine.h
 	erlang_compat.h
+	erlang_json.h
 	errors.h
 
 	ezlogger/ezlogger_format_policy.hpp

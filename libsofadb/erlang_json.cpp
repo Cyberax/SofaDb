@@ -1,4 +1,4 @@
-#include "erlang_compat.h"
+#include "erlang_json.h"
 #include "errors.h"
 #include <yajl/yajl_parse.h>
 #include <yajl/yajl_gen.h>
@@ -71,10 +71,10 @@ static erl_type_t* advance_list_with(json_processor *proc, erl_type_t && val)
 		list_ptr_t &tail=std::get<1>(state);
 		if (tail)
 		{
-			tail->next_=list_t::make();
-			tail=tail->next_;
+			tail->tail_=list_t::make();
+			tail=get_list(tail->tail_);
 		} else
-			tail = boost::get<list_ptr_t>(tp);
+			tail = get_list(tp);
 		tail->val_=std::move(val);
 		return &tail->val_;
 	} else
@@ -84,7 +84,7 @@ static erl_type_t* advance_list_with(json_processor *proc, erl_type_t && val)
 static int json_null(void * ctx)
 {
 	json_processor *proc = static_cast<json_processor*>(ctx);
-	advance_list_with(proc, erl_nil_t());
+	advance_list_with(proc, erl_nil);
 	return 1;
 }
 
@@ -155,7 +155,7 @@ static int json_end_array(void * ctx)
 		//We've got an empty list, we can get it for JSONs like this:
 		//{"a" : {}}
 		//so we need to back off and replace it with erl_nil_t()
-		*(std::get<2>(ent)) = erl_nil_t();
+		*(std::get<2>(ent)) = erl_nil;
 	}
 //	else
 //		advance_list_with(proc, erl_nil_t()); //Terminate a proper list
@@ -284,14 +284,15 @@ static void print_element(boost::shared_ptr<yajl_gen_t> ptr,
 	{
 		//Array
 		check_status(yajl_gen_array_open(ptr.get()));
-		for(list_ptr_t cur=boost::get<list_ptr_t>(tp); !!cur; cur=cur->next_)
+		list_ptr_t cur=get_list(tp);
+		do
 		{
-			//Tail of a proper list
-//			if (!cur->next_ && cur->val_.type()==typeid(erl_nil_t))
-//				break;
-
 			print_element(ptr, cur->val_);
-		}
+		} while(advance(&cur));
+
+		if (!is_nil(cur->tail_))
+			err(result_code_t::sError) << "Improper list inside JSON tuple";
+
 		check_status(yajl_gen_array_close(ptr.get()));
 	} else if (tp.type()==typeid(tuple_ptr_t))
 	{
@@ -321,7 +322,7 @@ static void print_element(boost::shared_ptr<yajl_gen_t> ptr,
 		char buf[32] = {0};
 		sprintf(buf, "%f", boost::get<double>(tp));
 		yajl_gen_number(ptr.get(), buf, strlen(buf));
-	} else if (tp.type()==typeid(erl_nil_t))
+	} else if (is_nil(tp))
 	{
 		//Null
 		yajl_gen_null(ptr.get());
@@ -333,12 +334,12 @@ static void print_map(boost::shared_ptr<yajl_gen_t> ptr, const erl_type_t &js)
 {
 	if (js.type()!=typeid(tuple_ptr_t))
 		err(result_code_t::sWrongRevision) << "Not a JSON document";
-	tuple_ptr_t cur = boost::get<tuple_ptr_t>(js);
-	if (cur->elements_.size()!=1)
+	tuple_ptr_t cur_tp = boost::get<tuple_ptr_t>(js);
+	if (cur_tp->elements_.size()!=1)
 		err(result_code_t::sError) << "Malformed JSON";
-	erl_type_t sub = cur->elements_.at(0);
+	const erl_type_t &sub = cur_tp->elements_.at(0);
 
-	if (sub.type()==typeid(erl_nil_t))
+	if (is_nil(sub))
 	{
 		check_status(yajl_gen_map_open(ptr.get()));
 		check_status(yajl_gen_map_close(ptr.get()));
@@ -350,7 +351,8 @@ static void print_map(boost::shared_ptr<yajl_gen_t> ptr, const erl_type_t &js)
 	const list_ptr_t &lst=boost::get<list_ptr_t>(sub);
 
 	check_status(yajl_gen_map_open(ptr.get()));
-	for(list_ptr_t cur=lst; !!cur; cur=cur->next_)
+	list_ptr_t cur=lst;
+	do
 	{
 		//This list should contain only tuples
 		if (cur->val_.type()!=typeid(tuple_ptr_t))
@@ -365,7 +367,10 @@ static void print_map(boost::shared_ptr<yajl_gen_t> ptr, const erl_type_t &js)
 
 		print_element(ptr, tp->elements_.at(0));
 		print_element(ptr, tp->elements_.at(1));
-	}
+	} while(advance(&cur));
+	if (!is_nil(cur->tail_))
+		err(result_code_t::sError) << "Improper list in JSON map";
+
 	check_status(yajl_gen_map_close(ptr.get()));
 }
 
@@ -395,10 +400,7 @@ list_ptr_t erlang::get_json_list(const erl_type_t& tp)
 	assert(ptr->elements_.size()==1);
 
 	const erl_type_t elem=ptr->elements_.at(0);
-	if (elem.type()==typeid(erl_nil_t))
-		return list_ptr_t();
-
-	return boost::get<list_ptr_t>(elem);
+	return try_list(elem);
 }
 
 static bool find_key(const erl_type_t &tp,
@@ -407,9 +409,9 @@ static bool find_key(const erl_type_t &tp,
 	erl_type_t str_bin=binary_t::make_from_string(str);
 
 	list_ptr_t lst=get_json_list(tp);
-	for(list_ptr_t cur=lst; !!cur; cur=cur->next_)
+	do
 	{
-		tuple_ptr_t tpl=boost::get<tuple_ptr_t>(cur->val_);
+		tuple_ptr_t tpl=boost::get<tuple_ptr_t>(lst->val_);
 		assert(tpl->elements_.size()==2);
 
 		if (deep_eq(tpl->elements_.at(0),str_bin))
@@ -418,7 +420,8 @@ static bool find_key(const erl_type_t &tp,
 				*out = &tpl->elements_.at(1);
 			return true;
 		}
-	}
+	} while(advance(&lst));
+	assert(is_nil(lst->tail_));
 
 	return false;
 }
@@ -444,27 +447,16 @@ erl_type_t& erlang::put_val(erl_type_t& tp, const std::string &str)
 
 	tuple_ptr_t ptr=boost::get<tuple_ptr_t>(tp);
 	assert(ptr->elements_.size()==1);
-	erl_type_t &cur_elem = ptr->elements_.at(0);
+	const erl_type_t &cur_elem = ptr->elements_.at(0);
 
-	list_ptr_t head;
-
-	//We have an empty list - transform it into a list
-	if (cur_elem.type()==typeid(erl_nil_t))
-	{
-		head=list_t::make();
-		cur_elem = head;
-	} else
-	{
-		list_ptr_t tail=boost::get<list_ptr_t>(cur_elem);
-		head=list_t::make();
-		head->next_=tail;
-		cur_elem = head;
-	}
+	list_ptr_t head=list_t::make();
+	head->tail_=cur_elem;
+	ptr->elements_.at(0) = head;
 
 	tuple_ptr_t tpl=tuple_t::make();
 	head->val_ = tpl;
 	tpl->elements_.push_back(binary_t::make_from_string(str));
-	tpl->elements_.push_back(erl_nil_t());
+	tpl->elements_.push_back(erl_nil);
 
 	return tpl->elements_.back();
 }
@@ -472,6 +464,6 @@ erl_type_t& erlang::put_val(erl_type_t& tp, const std::string &str)
 erl_type_t erlang::create_submap()
 {
 	tuple_ptr_t tpl=tuple_t::make();
-	tpl->elements_.push_back(erl_nil_t());
+	tpl->elements_.push_back(erl_nil);
 	return tpl;
 }
