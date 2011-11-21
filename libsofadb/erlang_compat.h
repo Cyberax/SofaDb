@@ -38,6 +38,11 @@ namespace erlang {
 		std::string name_;
 	};
 
+	struct string_opt_t
+	{
+		std::string str_;
+	};
+
 	struct list_t;
 	typedef boost::shared_ptr<list_t> list_ptr_t;
 
@@ -52,6 +57,7 @@ namespace erlang {
 		atom_t,
 		double,
 		BigInteger,
+		string_opt_t,
 		list_ptr_t,
 		tuple_ptr_t,
 		binary_ptr_t
@@ -59,7 +65,7 @@ namespace erlang {
 
 	struct list_t : public boost::enable_shared_from_this<list_t>
 	{
-		list_ptr_t next_;
+		erl_type_t tail_;
 		erl_type_t val_;
 
 		SOFADB_PUBLIC static list_ptr_t make();
@@ -67,7 +73,7 @@ namespace erlang {
 		friend class nil_list_creator;
 	};
 
-	SOFADB_PUBLIC extern const list_ptr_t erl_nil_t;
+	SOFADB_PUBLIC extern const boost::blank erl_nil;
 
 	struct binary_t
 	{
@@ -87,6 +93,34 @@ namespace erlang {
 
 		SOFADB_PUBLIC static tuple_ptr_t make();
 	};
+
+	inline bool is_nil(const erl_type_t &t)
+	{
+		return t.type() == typeid(boost::blank);
+	}
+
+	inline bool is_list(const erl_type_t &t)
+	{
+		return t.type() == typeid(list_ptr_t);
+	}
+	inline list_ptr_t try_list(const erl_type_t &t)
+	{
+		if (!is_list(t))
+			return list_ptr_t();
+		return boost::get<list_ptr_t>(t);
+	}
+	inline list_ptr_t get_list(const erl_type_t &t)
+	{
+		return boost::get<list_ptr_t>(t);
+	}
+
+	inline bool advance(list_ptr_t *head)
+	{
+		if (!is_list((*head)->tail_))
+			return false;
+		(*head)=get_list((*head)->tail_);
+		return true;
+	}
 
 	SOFADB_PUBLIC erl_type_t deep_copy(const erl_type_t &t);
 	SOFADB_PUBLIC bool deep_eq (const erl_type_t &l, const erl_type_t &r);

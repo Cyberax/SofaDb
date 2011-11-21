@@ -30,7 +30,7 @@ buf_stream test(const erl_type_t & erl)
 BOOST_AUTO_TEST_CASE(test_nil)
 {
 	//rp(term_to_binary([])).
-	CHECK(test(erl_nil_t), buf_t({131,106}));
+	CHECK(test(erl_nil), buf_t({131,106}));
 }
 
 BOOST_AUTO_TEST_CASE(test_atom)
@@ -200,11 +200,9 @@ BOOST_AUTO_TEST_CASE(test_list_proper)
 
 	list_ptr_t lst2(new list_t());
 	lst2->val_=atom_t {"atest"};
-	lst->next_=lst2;
+	lst->tail_=lst2;
 
-	list_ptr_t lst3(new list_t());
-	lst3->val_=erl_nil_t;
-	lst2->next_=lst3;
+	lst2->tail_=erl_nil;
 
 	//rp(term_to_binary([123, atest])).
 	CHECK(test(lst),
@@ -217,10 +215,8 @@ BOOST_AUTO_TEST_CASE(test_list_improper)
 	atom_t atom={"a"};
 	lst->val_=atom;
 
-	list_ptr_t lst2(new list_t());
 	atom_t atom2={"b"};
-	lst2->val_=atom2;
-	lst->next_=lst2;
+	lst->tail_=atom2;
 
 	//rp(term_to_binary([a | b])).
 	CHECK(test(lst),
@@ -313,26 +309,24 @@ BOOST_AUTO_TEST_CASE(test_empty_doc)
 
 	list_ptr_t lst2(new list_t());
 	lst2->val_=BigInteger(0);
-	lst->next_=lst2;
+	lst->tail_=lst2;
 
 	list_ptr_t lst3(new list_t());
 	lst3->val_=BigInteger(0);
-	lst2->next_=lst3;
+	lst2->tail_=lst3;
 
 	tuple_ptr_t tpl(new tuple_t());
-	tpl->elements_.push_back(erl_nil_t);
+	tpl->elements_.push_back(erl_nil);
 
 	list_ptr_t lst4(new list_t());
 	lst4->val_=tpl;
-	lst3->next_=lst4;
+	lst3->tail_=lst4;
 
 	list_ptr_t lst5(new list_t());
-	lst5->val_=erl_nil_t;
-	lst4->next_=lst5;
+	lst5->val_=erl_nil;
+	lst4->tail_=lst5;
 
-	list_ptr_t lst6(new list_t());
-	lst6->val_=erl_nil_t;
-	lst5->next_=lst6;
+	lst5->tail_=erl_nil;
 
 	//rp(term_to_binary([false, 0, 0, {[]}, []])).
 	CHECK(test(lst),

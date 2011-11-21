@@ -15,18 +15,19 @@ using namespace utils;
 const atom_t atom_t::TRUE={"true"};
 const atom_t atom_t::FALSE={"false"};
 
-const list_ptr_t erlang::erl_nil_t(list_t::make());
-class nil_list_creator
-{
-public:
-	nil_list_creator()
-	{
-		erl_nil_t->val_ = boost::blank();
-	}
-	~nil_list_creator()
-	{
-	}
-} nil_list_initializer;
+const boost::blank erlang::erl_nil = boost::blank();
+//const list_ptr_t erlang::erl_nil_t(list_t::make());
+//class nil_list_creator
+//{
+//public:
+//	nil_list_creator()
+//	{
+//		erl_nil_t->val_ = boost::blank();
+//	}
+//	~nil_list_creator()
+//	{
+//	}
+//} nil_list_initializer;
 
 static erl_type_t read_term(utils::input_stream *in);
 
@@ -67,7 +68,7 @@ struct SOFADB_LOCAL term_to_binary_visitor : public boost::static_visitor<>
 
 	void operator()(const boost::blank &) const
 	{
-		throw std::invalid_argument("Blank term is passed to term_to_binary");
+		out->write_byte(NIL_EXT); //NIL_EXT
 	}
 
 	void operator()(const atom_t &i) const
@@ -132,8 +133,9 @@ struct SOFADB_LOCAL term_to_binary_visitor : public boost::static_visitor<>
 		}
 	}
 
-	void operator()(const std::string &str) const
+	void operator()(const string_opt_t &opt) const
 	{
+		const std::string &str = opt.str_;
 		if (str.size()<=MAX_STRING_LEN)
 		{
 			out->write_byte(STRING_EXT);
@@ -156,31 +158,32 @@ struct SOFADB_LOCAL term_to_binary_visitor : public boost::static_visitor<>
 	void operator()(const list_ptr_t &ptr) const
 	{
 		assert(ptr);
-		if (ptr == erl_nil_t)
-		{
-			out->write_byte(NIL_EXT); //NIL_EXT
-			return;
-		}
 
 		size_t list_size = 0;
 		list_ptr_t cur=ptr;
 		while(cur)
 		{
 			list_size++;
-			cur=cur->next_;
+			cur=try_list(cur->tail_);
 		}
 
 		out->write_byte(LIST_EXT);
-		//Do not count the last element - it's always present and is treated
-		//specially in the wire format.
-		out->write_uint4(numeric_cast<uint32_t>(list_size-1));
+		//We do not count the last element - it's always present
+		//and is treated specially in the wire format.
+		out->write_uint4(numeric_cast<uint32_t>(list_size));
 
-		cur=ptr;
-		while(cur)
+		//We have to manually roll-out recursive functions :(((
+		//And it could be written so clearly in functional style:
+		//cur->val_.apply_visitor(*this);
+		//cur->tail_.apply_visitor(*this);
+		//but this causes stack overflow pretty quickly on small devices
+
+		list_ptr_t head = ptr;
+		do
 		{
-			cur->val_.apply_visitor(*this);
-			cur=cur->next_;
-		}
+			head->val_.apply_visitor(*this);
+		} while(advance(&head));
+		head->tail_.apply_visitor(*this);
 	}
 
 	void operator()(const tuple_ptr_t &ptr) const
@@ -244,79 +247,75 @@ static erl_type_t read_tuple(utils::input_stream *in, uint32_t ln)
 	return res;
 }
 
-//static std::tuple<list_ptr_t, list_ptr_t> unwind_string(
-//				const std::string & str)
-//{
-//	auto list_res=list_t::make();
-//	auto list_head=list_res;
-//	for(uint32_t pos=0; pos<str.length(); ++pos)
-//	{
-//		unsigned char ch=str[pos];
-//		list_res->val_=BigInteger(ch);
-//		list_res->next_=list_t::make();
-//		list_res=list_res->next_;
-//	}
-//	return std::make_tuple(list_head, list_res);
-//}
+static std::tuple<list_ptr_t, list_ptr_t> unwind_string(
+				const std::string & str)
+{
+	auto list_res=list_t::make();
+	auto list_head=list_res;
+	for(uint32_t pos=0; pos<str.length(); ++pos)
+	{
+		unsigned char ch=str[pos];
+		list_res->val_=BigInteger(ch);
+		list_res->tail_=list_t::make();
+		list_res=get_list(list_res->tail_);
+	}
+	return std::make_tuple(list_head, list_res);
+}
 
 static erl_type_t read_list(utils::input_stream *in)
 {
 	uint32_t ln=in->read_uint4();
 
 	std::string str_res;
-	list_ptr_t list_res=list_t::make();
-	list_ptr_t list_head = list_res;
-//	bool accumulating_string=true;
+	list_ptr_t list_res, list_head;
+	bool accumulating_string=true;
 
 	for(uint32_t f=0;f<ln;++f)
 	{
 		erl_type_t tp=read_term(in);
-//		const BigInteger *val=boost::get<BigInteger>(&tp);
-//		bool is_char=val && (*val)>=0 && (*val)<=UCHAR_MAX;
+		const BigInteger *val=boost::get<BigInteger>(&tp);
+		bool is_char=val && (*val)>=0 && (*val)<=UCHAR_MAX;
 
-//		if (is_char && accumulating_string)
-//		{
-//			str_res.push_back(val->toUnsignedChar());
-//			continue;
-//		}
+		if (is_char && accumulating_string)
+		{
+			str_res.push_back(val->toUnsignedChar());
+			continue;
+		}
 
-//		if (!is_char && accumulating_string)
-//		{
-//			//Unwind the string into list
-//			accumulating_string=false;
-//			auto res=unwind_string(str_res);
-//			list_head=std::get<0>(res);
-//			list_res=std::get<1>(res);
-//		}
-
+		if (!is_char && accumulating_string)
+		{
+			//Unwind the string into list
+			accumulating_string=false;
+			auto res=unwind_string(str_res);
+			list_head=std::get<0>(res);
+			list_res=std::get<1>(res);
+		} else if (f!=0)
+		{
+			list_res->tail_=list_t::make();
+			list_res=get_list(list_res->tail_);
+		}
 		list_res->val_=std::move(tp);
-		list_res->next_=list_t::make();
-		list_res=list_res->next_;
 	}
 
 	erl_type_t tp=read_term(in); //tail
-//	if (accumulating_string)
-//	{
-//		if (tp.type()!=typeid(list_ptr_t) ||
-//				boost::get<list_ptr_t>(tp) != erl_nil_t)
-//		{
-//			//The tail is not of type NIL, so we have to unwind the string
-//			accumulating_string=false;
-//			auto res=unwind_string(str_res);
-//			list_head=std::get<0>(res);
-//			list_res=std::get<1>(res);
-//			list_res->val_=tp;b
-//		}
-//	} else
-//		list_res->val_=tp;
+	if (accumulating_string)
+	{
+		if (!is_nil(tp))
+		{
+			//The tail is not of type NIL, so we have to unwind the string
+			accumulating_string=false;
+			auto res=unwind_string(str_res);
+			list_head=std::get<0>(res);
+			list_res=std::get<1>(res);
+			list_res->tail_=tp;
+		}
+	} else
+		list_res->tail_=tp;
 
-//	if (accumulating_string)
-//		return str_res;
-//	else
-//		return list_head;
-
-	list_res->val_=tp;
-	return list_head;
+	if (accumulating_string)
+		return string_opt_t {str_res};
+	else
+		return list_head;
 }
 
 static erl_type_t read_term(utils::input_stream *in)
@@ -325,7 +324,7 @@ static erl_type_t read_term(utils::input_stream *in)
 	switch(tag)
 	{
 	case NIL_EXT:
-		return erl_nil_t;
+		return erl_nil;
 	case ATOM_EXT:
 		{
 			uint16_t ln=in->read_uint2();
@@ -371,20 +370,10 @@ static erl_type_t read_term(utils::input_stream *in)
 	case STRING_EXT:
 		{
 			uint16_t ln=in->read_uint2();
-			list_ptr_t res=list_t::make();
-			list_ptr_t head=res;
-			for(size_t f=0;f<ln;++f)
-			{
-				res->val_=BigInteger(in->read_byte());
-				res->next_ = list_t::make();
-				res=res->next_;
-			}
-			return head;
-
-//			std::string str;
-//			str.resize(ln);
-//			in->read(&str[0], ln);
-//			return str;
+			std::string str;
+			str.resize(ln);
+			in->read(&str[0], ln);
+			return string_opt_t {str};
 		}
 	case SMALL_TUPLE_EXT:
 		{
@@ -456,33 +445,38 @@ struct SOFADB_LOCAL equality_visitor : public boost::static_visitor<>
 		res_=i==boost::get<BigInteger>(r_);
 	}
 
-	void operator()(const std::string &str)
+	void operator()(const string_opt_t &str)
 	{
-		res_=str==boost::get<std::string>(r_);
+		res_=str.str_ == boost::get<string_opt_t>(r_).str_;
 	}
 
 	void operator()(const list_ptr_t &ptr)
 	{
 		list_ptr_t cur=ptr;
-		list_ptr_t cur_other=boost::get<list_ptr_t>(r_);
+		list_ptr_t cur_other=get_list(r_);
+
+		//Instead of simple:
+		//res_= deep_eq(cur->tail_, cur_other->tail_);
+		//we use this :(
+
 		while(true)
 		{
-			bool first_not_empty=!!cur;
-			bool second_not_empty=!!cur_other;
-			if (first_not_empty != second_not_empty)
+			if (deep_ne(cur->val_,cur_other->val_))
 				return;
 
-			if (!first_not_empty)
+			bool advance_l = advance(&cur);
+			bool advance_r = advance(&cur_other);
+
+			if (advance_l != advance_r)
 			{
-				res_=true;
+				res_=false;
 				return;
 			}
 
-			if (deep_ne(cur->val_,cur_other->val_))
-				return;
-			cur=cur->next_;
-			cur_other=cur_other->next_;
+			if (!advance_l)
+				break;
 		}
+		res_= deep_eq(cur->tail_, cur_other->tail_);
 	}
 
 	void operator()(const tuple_ptr_t &l_tuple)
@@ -555,32 +549,25 @@ struct SOFADB_LOCAL printer_visitor : public boost::static_visitor<>
 		str_ << i;
 	}
 
-	void operator()(const std::string &str)
+	void operator()(const string_opt_t &str)
 	{
-		str_ << "\"" << str << "\"";
+		str_ << "\"" << str.str_ << "\"";
 	}
 
 	void operator()(const list_ptr_t &ptr)
 	{
-		if (ptr == erl_nil_t)
-		{
-			str_ << "[]";
-			return;
-		}
-
-		list_ptr_t cur=ptr;
 		str_ << "[";
-		while(!!cur)
+		list_ptr_t cur = ptr;
+		do
 		{
 			if (cur!=ptr)
 				str_ << ", ";
 			cur->val_.apply_visitor(*this);
+		} while(advance(&cur));
 
-			if (cur->next_ == erl_nil_t) //Silently eat the last nil
-				break;
+		if (!is_nil(cur->tail_)) //Silently eat the last nil
+			cur->tail_.apply_visitor(*this);
 
-			cur=cur->next_;
-		}
 		str_ << "]";
 	}
 
@@ -600,7 +587,7 @@ struct SOFADB_LOCAL printer_visitor : public boost::static_visitor<>
 	{
 		bool as_str=true;
 		for(size_t f=0;f<bin->binary_.size() && as_str;++f)
-			if (!isalnum(bin->binary_.at(f)))
+			if (!isprint(bin->binary_.at(f)))
 				as_str=false;
 
 		str_ << (as_str ? "<<\"" : "<<");
