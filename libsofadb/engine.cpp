@@ -6,6 +6,7 @@
 #include <boost/lexical_cast.hpp>
 #include "erlang_compat.h"
 #include "errors.h"
+#include <glog/logging.h>
 
 #include <iostream>
 using namespace sofadb;
@@ -88,9 +89,6 @@ void revision_t::calculate_revision()
 	binary_ptr_t bin=binary_t::make();
 	bin->binary_ = str.buffer;
 
-	std::cout << "Hash: " << new_rev.rev_ << " for "
-			  << erl_type_t(head) << std::endl;
-	std::cout << "Binary is " << erl_type_t(bin) << std::endl;
 	rev_ = std::move(new_rev);
 }
 
@@ -242,6 +240,6 @@ revision_ptr Database::put(const std::string &id, const maybe_string_t& old_rev,
 		//parent_->keystore_->Put(wo, doc_rev_path+cur_rev, bin
 	}
 
-//	EZLOGGERSTREAM << "Reading " << docpath << std::endl;
+	LOG(INFO) << "Reading " << doc_rev_path << std::endl;
 	return revision_ptr();
 }

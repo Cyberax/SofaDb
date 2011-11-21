@@ -14,14 +14,6 @@ FILE(GLOB libsofadb_INCLUDES
 	erlang_compat.h
 	erlang_json.h
 	errors.h
-
-	ezlogger/ezlogger_format_policy.hpp
-	ezlogger/ezlogger.hpp
-	ezlogger/ezlogger_misc.hpp
-	ezlogger/ezlogger_verbosity_level_policy.hpp
-	ezlogger/ezlogger_headers.hpp
-	ezlogger/ezlogger_macros.hpp
-	ezlogger/ezlogger_output_policy.hpp
 )
 
 INCLUDE_DIRECTORIES(.)
@@ -33,7 +25,7 @@ ADD_DEFINITIONS(-DLIBSOFADB_EXPORTS)
 ADD_LIBRARY(libsofadb SHARED ${libsofadb_SRCS} ${libsofadb_INCLUDES})
 SET_TARGET_PROPERTIES(libsofadb PROPERTIES OUTPUT_NAME "sofadb")
 
-TARGET_LINK_LIBRARIES(libsofadb crypto yajl)
+TARGET_LINK_LIBRARIES(libsofadb crypto yajl glog)
 # ${LevelDb_LIBRARY}
 #	json_spirit)# bigint)
 
