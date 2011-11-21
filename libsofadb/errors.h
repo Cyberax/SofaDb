@@ -13,6 +13,8 @@ namespace sofadb {
 	public:
 		enum code_e {
 			sOk = 200,
+			sAccepted = 202,
+			sCreated = 201,
 			sWrongRevision = 400,
 			sNotFound = 404,
 			sConflict = 409,
@@ -33,7 +35,7 @@ namespace sofadb {
 
 		code_e code() const { return code_; }
 		const std::string& desc() const { return desc_; }
-		bool ok() const {return code_==sOk;}
+		bool ok() const {return code_>=sOk && code_<=sCreated;}
 	private:
 		code_e code_;
 		std::string desc_;
