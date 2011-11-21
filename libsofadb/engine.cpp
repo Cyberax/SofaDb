@@ -1,5 +1,6 @@
 #include "engine.h"
 #include "leveldb/db.h"
+#include "erlang_json.h"
 #include <openssl/md5.h>
 #include <time.h>
 #include <boost/lexical_cast.hpp>
@@ -60,21 +61,22 @@ void revision_t::calculate_revision()
 	list_ptr_t head=(list_t::make());
 	list_ptr_t lst=head;
 	lst->val_ = deleted_ ? atom_t::TRUE : atom_t::FALSE;
-	lst->next_ = list_t::make(); lst=lst->next_;
+	lst->tail_ = list_t::make(); lst=get_list(lst->tail_);
 
 	lst->val_ = BigInteger(previous_rev_.id_);
-	lst->next_ = list_t::make(); lst=lst->next_;
+	lst->tail_ = list_t::make(); lst=get_list(lst->tail_);
 
 	if (previous_rev_.id_!=0)
 		lst->val_ = binary_t::make_from_string(previous_rev_.rev_);
 	else
 		lst->val_ = BigInteger(0);
-	lst->next_ = list_t::make(); lst=lst->next_;
+	lst->tail_ = list_t::make(); lst=get_list(lst->tail_);
 
 	lst->val_ = json_body_;
-	lst->next_ = list_t::make(); lst=lst->next_;
+	lst->tail_ = list_t::make(); lst=get_list(lst->tail_);
 
-	lst->val_ = erl_nil_t; //TODO: attachments
+	lst->val_ = erl_nil; //TODO: attachments
+	lst->tail_ = erl_nil;
 
 	utils::buf_stream str;
 	term_to_binary(head, &str);
@@ -177,8 +179,10 @@ std::pair<erl_type_t,erl_type_t>
 	erl_type_t sanitized = create_submap();
 	erl_type_t special = create_submap();
 
-	list_ptr_t prev;
-	for(list_ptr_t cur=get_json_list(tp); cur; cur=cur->next_)
+	//list_ptr_t prev;
+	list_ptr_t cur=get_json_list(tp);
+	assert(cur);
+	do
 	{
 		tuple_ptr_t ptr=boost::get<tuple_ptr_t>(cur->val_);
 		assert(ptr->elements_.size()==2);
@@ -190,7 +194,8 @@ std::pair<erl_type_t,erl_type_t>
 			put_val(special, binary_to_string(key)) = std::move(val);
 		else
 			put_val(sanitized, binary_to_string(key)) = std::move(val);
-	}
+	} while(advance(&cur));
+	assert(is_nil(cur->tail_));
 
 	return std::make_pair(std::move(sanitized), std::move(special));
 }
@@ -240,4 +245,3 @@ revision_ptr Database::put(const std::string &id, const maybe_string_t& old_rev,
 //	EZLOGGERSTREAM << "Reading " << docpath << std::endl;
 	return revision_ptr();
 }
-

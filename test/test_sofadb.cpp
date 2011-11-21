@@ -1,4 +1,5 @@
 #include <boost/test/unit_test.hpp>
+#include "erlang_json.h"
 
 #include "engine.h"
 using namespace sofadb;
@@ -34,4 +35,6 @@ BOOST_AUTO_TEST_CASE(test_database_put)
 
 	revision_ptr rev=ptr->put("hello", maybe_string_t(),
 							parse_json("{\"Hello\" : \"world\"}"), true);
+
+//	BOOST_REQUIRE(rev->rev_.get().rev_ == "2028f9ff8e5094cfc9e4eb8bcca19e83");
 }

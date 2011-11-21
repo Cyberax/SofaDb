@@ -73,6 +73,7 @@ static erl_type_t* advance_list_with(json_processor *proc, erl_type_t && val)
 		{
 			tail->tail_=list_t::make();
 			tail=get_list(tail->tail_);
+			tail->tail_ = erl_nil;
 		} else
 			tail = get_list(tp);
 		tail->val_=std::move(val);
@@ -301,31 +302,32 @@ static void print_element(boost::shared_ptr<yajl_gen_t> ptr,
 	} else if (tp.type()==typeid(binary_ptr_t))
 	{
 		binary_ptr_t cur = boost::get<binary_ptr_t>(tp);
-		yajl_gen_string(ptr.get(), cur->binary_.data(), cur->binary_.size());
+		check_status(yajl_gen_string(ptr.get(),
+									 cur->binary_.data(), cur->binary_.size()));
 	} else if (tp.type()==typeid(BigInteger))
 	{
 		//Int
 		std::string num=bigIntegerToString(boost::get<BigInteger>(tp));
-		yajl_gen_number(ptr.get(), num.c_str(), num.length());
+		check_status(yajl_gen_number(ptr.get(), num.c_str(), num.length()));
 	} else if (tp.type()==typeid(atom_t))
 	{
 		//Boolean
 		const std::string &str=boost::get<const atom_t&>(tp).name_;
 		if (str=="true")
-			yajl_gen_bool(ptr.get(), 1);
+			check_status(yajl_gen_bool(ptr.get(), 1));
 		else if (str=="false")
-			yajl_gen_bool(ptr.get(), 0);
+			check_status(yajl_gen_bool(ptr.get(), 0));
 		else
 			err(result_code_t::sWrongRevision) << "Malformed boolean " << tp;
 	} else if (tp.type()==typeid(double))
 	{
 		char buf[32] = {0};
 		sprintf(buf, "%f", boost::get<double>(tp));
-		yajl_gen_number(ptr.get(), buf, strlen(buf));
+		check_status(yajl_gen_number(ptr.get(), buf, strlen(buf)));
 	} else if (is_nil(tp))
 	{
 		//Null
-		yajl_gen_null(ptr.get());
+		check_status(yajl_gen_null(ptr.get()));
 	} else
 		err(result_code_t::sWrongRevision) << "Unexpected JSON term "<<tp;
 }
@@ -409,6 +411,9 @@ static bool find_key(const erl_type_t &tp,
 	erl_type_t str_bin=binary_t::make_from_string(str);
 
 	list_ptr_t lst=get_json_list(tp);
+	if (!lst)
+		return false;
+
 	do
 	{
 		tuple_ptr_t tpl=boost::get<tuple_ptr_t>(lst->val_);
