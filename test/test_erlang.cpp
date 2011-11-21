@@ -168,30 +168,30 @@ BOOST_AUTO_TEST_CASE(test_int_big)
 				0,0,0,0,0,0,0,0,0,0,0,0,1}));
 }
 
-//BOOST_AUTO_TEST_CASE(test_string)
-//{
-//	std::string s(65534, 'c');
-//	buf_t etalon={131,107,255,254};
-//	etalon.insert(etalon.end(), 65534, 99);
+BOOST_AUTO_TEST_CASE(test_string)
+{
+	std::string s(65534, 'c');
+	buf_t etalon={131,107,255,254};
+	etalon.insert(etalon.end(), 65534, 99);
 
-//	//term_to_binary(string:copies("c", 65534)).
-//	CHECK(test(s), etalon);
-//}
+	//term_to_binary(string:copies("c", 65534)).
+	CHECK(test(string_opt_t{s}), etalon);
+}
 
-//BOOST_AUTO_TEST_CASE(test_string_big)
-//{
-//	std::string s(65535, 'c');
-//	buf_t etalon={131,108,0,0,255,255};
-//	for(int f=0;f<65535;++f)
-//	{
-//		etalon.push_back(97);
-//		etalon.push_back(99);
-//	}
-//	etalon.push_back(106);
+BOOST_AUTO_TEST_CASE(test_string_big)
+{
+	std::string s(65535, 'c');
+	buf_t etalon={131,108,0,0,255,255};
+	for(int f=0;f<65535;++f)
+	{
+		etalon.push_back(97);
+		etalon.push_back(99);
+	}
+	etalon.push_back(106);
 
-//	//term_to_binary(string:copies("c", 65535)).
-//	CHECK(test(s), etalon);
-//}
+	//term_to_binary(string:copies("c", 65535)).
+	CHECK(test(string_opt_t{s}), etalon);
+}
 
 BOOST_AUTO_TEST_CASE(test_list_proper)
 {
