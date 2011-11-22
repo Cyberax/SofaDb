@@ -11,7 +11,7 @@ typedef std::vector<unsigned char> buf_t;
 BOOST_AUTO_TEST_CASE(test_nil)
 {
 	//rp(term_to_binary([])).
-	CHECK(test(erl_nil), buf_t({131,106}));
+	CHECK_STR(test(erl_nil), buf_t({131,106}));
 }
 
 BOOST_AUTO_TEST_CASE(test_atom)
@@ -19,7 +19,7 @@ BOOST_AUTO_TEST_CASE(test_atom)
 	atom_t atom;
 	atom.name_="test";
 	//rp(term_to_binary(test)).
-	CHECK(test(atom), buf_t({131,100,0,4,116,101,115,116}));
+	CHECK_STR(test(atom), buf_t({131,100,0,4,116,101,115,116}));
 }
 
 BOOST_AUTO_TEST_CASE(test_long_atom)
@@ -34,7 +34,7 @@ BOOST_AUTO_TEST_CASE(test_long_atom)
 BOOST_AUTO_TEST_CASE(test_double)
 {
 	//rp(term_to_binary(1.123)).
-	CHECK(test(1.123d),
+	CHECK_STR(test(1.123d),
 		  buf_t({131,99,49,46,49,50,50,57,57,57,57,57,57,57,57,57,57,57,
 				57,57,57,56,50,50,101,43,48,48,0,0,0,0,0}));
 }
@@ -42,17 +42,17 @@ BOOST_AUTO_TEST_CASE(test_double)
 BOOST_AUTO_TEST_CASE(test_int_small)
 {
 	//rp(term_to_binary(255)).
-	CHECK(test(BigInteger(255)), buf_t({131,97,255}));
+	CHECK_STR(test(BigInteger(255)), buf_t({131,97,255}));
 }
 
 BOOST_AUTO_TEST_CASE(test_int_medium)
 {
 	//rp(term_to_binary(-1)).
-	CHECK(test(BigInteger(-1)), buf_t({131,98,255,255,255,255}));
+	CHECK_STR(test(BigInteger(-1)), buf_t({131,98,255,255,255,255}));
 	//rp(term_to_binary(134217727)).
-	CHECK(test(BigInteger(134217727)), buf_t({131,98,7,255,255,255}));
+	CHECK_STR(test(BigInteger(134217727)), buf_t({131,98,7,255,255,255}));
 	//rp(term_to_binary(-134217728)).
-	CHECK(test(BigInteger(-134217728)), buf_t({131,98,248,0,0,0}));
+	CHECK_STR(test(BigInteger(-134217728)), buf_t({131,98,248,0,0,0}));
 }
 
 BigInteger bigpow(const BigInteger &num, int e)
@@ -77,7 +77,7 @@ BOOST_AUTO_TEST_CASE(test_int_big)
 	//c(m).
 	//rp(term_to_binary(m:pow(256,255)-1)).
 	BigInteger med=bigpow(256, 255)-1;
-	CHECK(test(med),
+	CHECK_STR(test(med),
 		  buf_t({131,110,255,0,255,255,255,255,255,255,255,255,255,255,
 				255,255,255,255,255,255,255,255,255,255,255,255,255,255,
 				255,255,255,255,255,255,255,255,255,255,255,255,255,255,
@@ -99,7 +99,7 @@ BOOST_AUTO_TEST_CASE(test_int_big)
 				255,255,255,255,255,255,255}));
 	//c(m).
 	//rp(term_to_binary(-m:pow(256,255)+1)).
-	CHECK(test(-med),
+	CHECK_STR(test(-med),
 		  buf_t({131,110,255,1,255,255,255,255,255,255,255,255,255,255,
 				255,255,255,255,255,255,255,255,255,255,255,255,255,255,
 				255,255,255,255,255,255,255,255,255,255,255,255,255,255,
@@ -122,7 +122,7 @@ BOOST_AUTO_TEST_CASE(test_int_big)
 
 	//c(m).
 	//rp(term_to_binary(m:pow(256,255))).
-	CHECK(test(med+1),
+	CHECK_STR(test(med+1),
 		  buf_t({131,111,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 				0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 				0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -136,7 +136,7 @@ BOOST_AUTO_TEST_CASE(test_int_big)
 
 	//c(m).
 	//rp(term_to_binary(-m:pow(256,255))).
-	CHECK(test(-med-1),
+	CHECK_STR(test(-med-1),
 		  buf_t({131,111,0,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 				0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 				0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -156,7 +156,7 @@ BOOST_AUTO_TEST_CASE(test_string)
 	etalon.insert(etalon.end(), 65534, 99);
 
 	//term_to_binary(string:copies("c", 65534)).
-	CHECK(test(string_opt_t{s}), etalon);
+	CHECK_STR(test(string_opt_t{s}), etalon);
 }
 
 BOOST_AUTO_TEST_CASE(test_string_big)
@@ -171,7 +171,7 @@ BOOST_AUTO_TEST_CASE(test_string_big)
 	etalon.push_back(106);
 
 	//term_to_binary(string:copies("c", 65535)).
-	CHECK(test(string_opt_t{s}), etalon);
+	CHECK_STR(test(string_opt_t{s}), etalon);
 }
 
 BOOST_AUTO_TEST_CASE(test_list_proper)
@@ -186,7 +186,7 @@ BOOST_AUTO_TEST_CASE(test_list_proper)
 	lst2->tail_=erl_nil;
 
 	//rp(term_to_binary([123, atest])).
-	CHECK(test(lst),
+	CHECK_STR(test(lst),
 		  buf_t({131,108,0,0,0,2,97,123,100,0,5,97,116,101,115,116,106}));
 }
 
@@ -200,7 +200,7 @@ BOOST_AUTO_TEST_CASE(test_list_improper)
 	lst->tail_=atom2;
 
 	//rp(term_to_binary([a | b])).
-	CHECK(test(lst),
+	CHECK_STR(test(lst),
 		  buf_t({131,108,0,0,0,1,100,0,1,97,100,0,1,98}));
 }
 
@@ -240,7 +240,7 @@ BOOST_AUTO_TEST_CASE(test_tuple_small)
 			  97,99,97,99,97,99,97,99,97,99,97,99,97,99,97,99,97,99,
 			  97,99,97,99,97,99,97,99,97,99,97,99,97,99,97,99,97,99,
 			  97,99,97,99,97,99,97,99,97,99};
-	CHECK(test(t), buf_t(res, res+sizeof(res)));
+	CHECK_STR(test(t), buf_t(res, res+sizeof(res)));
 }
 
 BOOST_AUTO_TEST_CASE(test_tuple_big)
@@ -279,7 +279,7 @@ BOOST_AUTO_TEST_CASE(test_tuple_big)
 			  99,97,99,97,99,97,99,97,99,97,99,97,99,97,99,97,99,97,
 			  99,97,99,97,99,97,99,97,99,97,99,97,99,97,99,97,99,97,
 			  99,97,99,97,99,97,99,97,99,97,99,97,99};
-	CHECK(test(t), buf_t(res, res+sizeof(res)));
+	CHECK_STR(test(t), buf_t(res, res+sizeof(res)));
 }
 
 BOOST_AUTO_TEST_CASE(test_empty_doc)
@@ -310,7 +310,7 @@ BOOST_AUTO_TEST_CASE(test_empty_doc)
 	lst5->tail_=erl_nil;
 
 	//rp(term_to_binary([false, 0, 0, {[]}, []])).
-	CHECK(test(lst),
+	CHECK_STR(test(lst),
 		  buf_t({131,108,0,0,0,5,100,0,5,102,97,108,115,101,97,0,97,0,
 				104,1,106,106,106}));
 }
@@ -319,6 +319,6 @@ BOOST_AUTO_TEST_CASE(test_binary)
 {
 	//rp(term_to_binary(<<"Hello">>)).
 	binary_ptr_t bin=binary_t::make_from_string("Hello");
-	CHECK(test(bin),
+	CHECK_STR(test(bin),
 		  buf_t({131,109,0,0,0,5,72,101,108,108,111}));
 }

@@ -37,7 +37,7 @@ BOOST_AUTO_TEST_CASE(test_parse_json2)
 	erl_type_t res=parse_json("{\"Hello\" : \"world\"}");
 
 	//rp(term_to_binary({[{<<"Hello">>, <<"world">>}]})).
-	CHECK(test(res),
+	CHECK_STR(test(res),
 		  buf_t({131,104,1,108,0,0,0,1,104,2,109,0,0,0,5,72,101,108,108,
 				111,109,0,0,0,5,119,111,114,108,100,106}));
 }

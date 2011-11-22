@@ -1,6 +1,6 @@
 #include "erlang_compat.h"
 
-#define CHECK(stream, etalon) \
+#define CHECK_STR(stream, etalon) \
 { \
 	if (stream.buffer != etalon) \
 		BOOST_FAIL("Failure"); \
