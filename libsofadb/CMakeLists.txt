@@ -1,6 +1,7 @@
 PROJECT(libsofadb)
 
 FILE(GLOB libsofadb_SRCS
+	database.cpp
 	engine.cpp
 	erlang_compat.cpp
 	erlang_json.cpp
@@ -10,10 +11,12 @@ FILE(GLOB libsofadb_SRCS
 FILE(GLOB libsofadb_INCLUDES
 	binary_stream.hpp
 	common.h
+	database.h
 	engine.h
 	erlang_compat.h
 	erlang_json.h
 	errors.h
+	scope_guard.h
 )
 
 INCLUDE_DIRECTORIES(.)

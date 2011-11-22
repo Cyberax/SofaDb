@@ -100,21 +100,22 @@ namespace utils {
 		}
 	};
 
-	class buf_input_stream : public input_stream
+	template<class Container>
+	class base_input_stream : public input_stream
 	{
-		typedef std::vector<unsigned char> buf_t;
+		typedef Container buf_t;
 	public:
 		buf_t buffer;
-		buf_t::const_iterator pos;
+		typename buf_t::const_iterator pos;
 
-		buf_input_stream()
+		base_input_stream()
 		{
-			pos=buf_t::const_iterator();
+			pos=typename buf_t::const_iterator();
 		}
 
 		void read(void *data, size_t bytes)
 		{
-			if (pos==buf_t::const_iterator())
+			if (pos==typename buf_t::const_iterator())
 				pos=buffer.begin();
 
 			if (buffer.end()-pos < bytes)
@@ -125,6 +126,7 @@ namespace utils {
 		}
 	};
 
+	typedef base_input_stream< std::vector<unsigned char> > buf_input_stream;
 
 }  // namespace utils
 

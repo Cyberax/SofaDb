@@ -1,5 +1,4 @@
 #include <leveldb/db.h>
-#include <boost/scope_exit.hpp>
 #include <iostream>
 #include <memory>
 
@@ -48,9 +47,7 @@ int main(int argc, const char **argv)
 	opts.compression=kSnappyCompression;
 	DB *db=0;
 	leveldb::Status status = leveldb::DB::Open(opts, argv[1], &db);
-	BOOST_SCOPE_EXIT((db)) {
-		delete db;
-	} BOOST_SCOPE_EXIT_END
+	std::auto_ptr<DB> deleter(db);
 
 	if (!status.ok())
 	{

@@ -43,4 +43,10 @@ BOOST_AUTO_TEST_CASE(test_database_put)
 
 	revision_ptr rev=ptr->put("Hello", maybe_string_t(), js, true);
 	BOOST_REQUIRE(rev->rev_.get().rev_ == "2028f9ff8e5094cfc9e4eb8bcca19e83");
+
+	revision_ptr rev2=ptr->get("Hello");
+	revision_ptr rev3=ptr->get("Hello", rev->rev_.get().to_string());
+
+	BOOST_REQUIRE(deep_eq(rev->json_body_, rev2->json_body_));
+	BOOST_REQUIRE(deep_eq(rev->json_body_, rev3->json_body_));
 }

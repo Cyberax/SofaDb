@@ -3,7 +3,7 @@
 #define BOOST_TEST_MODULE "SofaDB Tests"
 #define BOOST_TEST_NO_MAIN
 #include <boost/test/unit_test.hpp>
-#include <boost/scope_exit.hpp>
+#include "scope_guard.h"
 
 #include <glog/logging.h>
 
@@ -15,9 +15,7 @@ main( int argc, char* argv[] )
 #ifdef DEBUG
 	google::LogToStderr();
 #endif
-	BOOST_SCOPE_EXIT() {
-		google::ShutdownGoogleLogging();
-	} BOOST_SCOPE_EXIT_END
+	ON_BLOCK_EXIT(&google::ShutdownGoogleLogging);
 
 	return ::boost::unit_test::unit_test_main( &init_unit_test, argc, argv );
 }
