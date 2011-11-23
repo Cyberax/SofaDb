@@ -112,7 +112,8 @@ namespace sofadb {
 		}
 		template<class T, json_disc D> T& get()
 		{
-			return static_cast<T&>(get<T,D>());
+			if (disc_ != D) throw std::bad_cast();
+			return *(reinterpret_cast<T*>(storage_.max_aligned));
 		}
 		template<class T, json_disc D> T& as()
 		{

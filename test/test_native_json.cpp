@@ -8,4 +8,7 @@ BOOST_AUTO_TEST_CASE(test_types)
 {
 	json_value val(123LL);
 	BOOST_REQUIRE(val.as_int() == 123LL);
+	val.as_int() = 1234;
+	BOOST_REQUIRE(val.as_int() == 1234);
+//	val.get_bool();
 }
