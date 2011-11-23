@@ -59,6 +59,7 @@ namespace sofadb {
 		};
 #endif
 	public:
+		json_value(json_disc type);
 		json_value(const json_value& other);
 		json_value() { disc_ = nil_d; }
 		json_value(json_value &&);
@@ -71,6 +72,7 @@ namespace sofadb {
 		json_value& operator = (json_value &&);
 
 		json_disc type() const {return disc_;}
+		json_value normalize_int() const;
 
 		void as_nil() { clear(); }
 		bool is_nil() { return disc_==nil_d; }
@@ -81,7 +83,7 @@ namespace sofadb {
 			disc_ = nil_d; \
 			make<type, disc>(val); \
 		}\
-		json_value(type &&val) \
+		is_explicit json_value(type &&val) \
 		{ \
 			disc_ = nil_d; \
 			make<type, disc>(std::move(val)); \
@@ -110,10 +112,10 @@ namespace sofadb {
 		}
 
 		STD_FUNCS(bool, bool, bool_d, explicit)
-		STD_FUNCS(int64_t, int, int_d, )
+		STD_FUNCS(int64_t, int, int_d, explicit)
 		STD_FUNCS(double, double, double_d, )
 		STD_FUNCS(jstring_t, str, string_d, )
-		STD_FUNCS(BigInteger, big_int, big_int_d, explicit)
+		STD_FUNCS(BigInteger, big_int, big_int_d,)
 		STD_FUNCS(submap_t, submap, submap_d,)
 		STD_FUNCS(sublist_t, sublist, sublist_d, )
 
@@ -195,7 +197,7 @@ namespace sofadb {
 	//////////////////////////////////////////////////////////////////////////
 	//////////////////////////////////////////////////////////////////////////
 
-	void json_value::clear()
+	inline void json_value::clear()
 	{
 		switch(disc_)
 		{
@@ -222,9 +224,42 @@ namespace sofadb {
 		disc_ = nil_d;
 	}
 
+	inline json_value::json_value(json_disc type)
+	{
+		disc_ = nil_d;
+		switch(type)
+		{
+			case nil_d:
+				break;
+			case bool_d:
+				make<bool, bool_d>();
+				break;
+			case int_d:
+				make<int, int_d>();
+				break;
+			case double_d:
+				make<double, double_d>();
+				break;
+			case string_d:
+				make<jstring_t, string_d>();
+				break;
+			case big_int_d:
+				make<BigInteger, big_int_d>();
+				break;
+			case submap_d:
+				make<submap_t, submap_d>();
+				break;
+			case sublist_d:
+				make<sublist_t, sublist_d>();
+				break;
+			default:
+				assert(false);
+		}
+	}
+
 	inline json_value::json_value(const json_value& other)
 	{
-		clear();
+		disc_ = nil_d;
 		*this = other;
 	}
 

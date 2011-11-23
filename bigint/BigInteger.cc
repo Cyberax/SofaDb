@@ -1,4 +1,5 @@
 #include "BigInteger.hh"
+#include <sys/types.h>
 
 void BigInteger::operator =(const BigInteger &x) {
 	// Calls like a = a have no effect
@@ -129,6 +130,7 @@ unsigned int   BigInteger::toUnsignedInt  () const { return convertToUnsignedPri
 unsigned short BigInteger::toUnsignedShort() const { return convertToUnsignedPrimitive<unsigned short>       (); }
 unsigned char  BigInteger::toUnsignedChar () const { return convertToUnsignedPrimitive<unsigned char >       (); }
 long           BigInteger::toLong         () const { return convertToSignedPrimitive  <long , unsigned long> (); }
+int64_t        BigInteger::toLongLong     () const { return convertToSignedPrimitive  <int64_t, uint64_t> (); }
 int            BigInteger::toInt          () const { return convertToSignedPrimitive  <int  , unsigned int>  (); }
 short          BigInteger::toShort        () const { return convertToSignedPrimitive  <short, unsigned short>(); }
 

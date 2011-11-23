@@ -71,6 +71,7 @@ public:
 	unsigned short toUnsignedShort() const;
 	short          toShort        () const;
 	unsigned char  toUnsignedChar () const;
+	int64_t        toLongLong     () const;
 protected:
 	// Helper
 	template <class X> X convertToUnsignedPrimitive() const;

@@ -1,6 +1,7 @@
 #ifndef BIGUNSIGNED_H
 #define BIGUNSIGNED_H
 
+#include <stdint.h>
 #include "NumberlikeArray.hh"
 
 /* A BigUnsigned object represents a nonnegative integer of size limited only by
