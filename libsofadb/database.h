@@ -2,7 +2,7 @@
 #define SOFA_DATABASE_H
 
 #include "common.h"
-#include "erlang_compat.h"
+#include "native_json.h"
 #include <boost/optional.hpp>
 
 namespace leveldb {
@@ -32,6 +32,11 @@ namespace sofadb {
 		std::string rev_; //Document's MD5 hash or other ID
 
 		revision_info_t() : id_() {}
+		revision_info_t(uint32_t id, const std::string &rev) :
+			id_(id), rev_(rev)
+		{
+		}
+
 		SOFADB_PUBLIC revision_info_t(const std::string &);
 		SOFADB_PUBLIC std::string to_string() const;
 	};
@@ -79,7 +84,7 @@ namespace sofadb {
 		//Revision in the format num-MD5 where MD5 is a hash of the document's
 		//contents.
 		revision_info_t previous_rev_;
-		erlang::erl_type_t json_body_;
+		json_value json_body_;
 		attachment_vector_t atts_;
 
 		//Cached revision info, can be computed based on the previous
@@ -118,27 +123,26 @@ namespace sofadb {
 		std::recursive_mutex mutex_;
 
 		bool closed_;
-		erlang
-		::erl_type_t json_meta_;
+		json_value json_meta_;
 		std::string name_;
 
 		Database(DbEngine *parent, const std::string &name);
-		Database(DbEngine *parent, const erlang::erl_type_t &meta);
+		Database(DbEngine *parent, json_value &&meta);
 
 		friend class DbEngine;
 	public:
-		const erlang::erl_type_t& get_meta() const {return json_meta_;}
+		const json_value& get_meta() const {return json_meta_;}
 
 		bool operator == (const Database &other) const
 		{
-			return deep_eq(other.json_meta_, json_meta_);
+			return other.json_meta_ == json_meta_;
 		}
 
 		SOFADB_PUBLIC revision_ptr get(
 			const std::string &id, const maybe_string_t& rev=maybe_string_t());
 		SOFADB_PUBLIC revision_ptr put(
 			const std::string &id, const maybe_string_t& rev,
-			const erlang::erl_type_t &json, bool batched);
+			const json_value &json, bool batched);
 		SOFADB_PUBLIC revision_ptr remove(
 			const std::string &id, const maybe_string_t& rev,
 			bool batched);
@@ -151,8 +155,8 @@ namespace sofadb {
 
 	private:
 		void check_closed();
-		std::pair<erlang::erl_type_t, erlang::erl_type_t>
-			sanitize_and_get_reserved_words(const erlang::erl_type_t &tp);
+		std::pair<json_value, json_value>
+			sanitize_and_get_reserved_words(const json_value &tp);
 
 		void store(const leveldb::WriteOptions &wo, revision_ptr ptr);
 		std::string make_path(const std::string &id, maybe_string_t rev);

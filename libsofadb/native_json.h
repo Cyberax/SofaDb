@@ -77,6 +77,15 @@ namespace sofadb {
 		void as_nil() { clear(); }
 		bool is_nil() { return disc_==nil_d; }
 
+		const json_value& operator[](const std::string &str) const
+		{
+			return get_submap().at(str);
+		}
+		json_value& operator[](const std::string &str)
+		{
+			return get_submap()[str];
+		}
+
 #define STD_FUNCS(type, type_postfix, disc, is_explicit) \
 		is_explicit json_value(const type &val) \
 		{ \

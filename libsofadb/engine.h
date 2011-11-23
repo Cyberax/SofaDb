@@ -6,8 +6,7 @@
 
 namespace sofadb {
 
-	SOFADB_PUBLIC std::string calculate_hash(
-		const std::vector<unsigned char> &arr);
+	SOFADB_PUBLIC std::string calculate_hash(const char *arr, size_t ln);
 
 	class DbEngine
 	{

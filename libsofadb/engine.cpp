@@ -1,27 +1,24 @@
 #include "engine.h"
 #include "leveldb/db.h"
-#include "erlang_json.h"
 #include <openssl/md5.h>
 #include <time.h>
 #include <boost/lexical_cast.hpp>
-#include "erlang_compat.h"
 #include "errors.h"
 
 #include <iostream>
 using namespace sofadb;
 using namespace leveldb;
-using namespace erlang;
 
 const std::string DbEngine::SYSTEM_DB("_sys");
 const std::string DbEngine::DATA_DB("_data");
 const revision_info_t revision_info_t::empty_revision;
 
-std::string sofadb::calculate_hash(const std::vector<unsigned char> &arr)
+std::string sofadb::calculate_hash(const char *arr, size_t ln)
 {
 	static const char alphabet[17]="0123456789abcdef";
 
 	unsigned char res[MD5_DIGEST_LENGTH+1]={0};
-	MD5(arr.data(), arr.size(), res);
+	MD5((const unsigned char*)arr, ln, res);
 
 	std::string str_res;
 	str_res.reserve(MD5_DIGEST_LENGTH*2+1);
