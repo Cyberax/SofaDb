@@ -50,3 +50,25 @@ BOOST_AUTO_TEST_CASE(test_database_put)
 	BOOST_REQUIRE(deep_eq(rev->json_body_, rev2->json_body_));
 	BOOST_REQUIRE(deep_eq(rev->json_body_, rev3->json_body_));
 }
+
+BOOST_AUTO_TEST_CASE(test_database_update)
+{
+	std::string templ("/tmp/sofa_XXXXXX");
+	mkdtemp(&templ[0]);
+	DbEngine engine(templ, true);
+
+	database_ptr ptr=engine.create_a_database("test");
+	erl_type_t js=parse_json("{\"Hello\" : \"world\"}");
+	erl_type_t js2=parse_json("{\"Hello the second\" : \"world\"}");
+
+	revision_ptr rev=ptr->put("Hello", maybe_string_t(), js, true);
+
+	revision_ptr rev2=ptr->put("Hello", maybe_string_t(), js2, true);
+	BOOST_REQUIRE(!rev2);
+
+	revision_ptr rev3=ptr->put("Hello", maybe_string_t("2-Nope"), js2, true);
+	BOOST_REQUIRE(!rev3);
+
+	revision_ptr rev4=ptr->put("Hello", rev->get_rev(), js2, true);
+	BOOST_REQUIRE(rev4);
+}

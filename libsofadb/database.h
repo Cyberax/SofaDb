@@ -86,6 +86,13 @@ namespace sofadb {
 		//revision
 		boost::optional<revision_info_t> rev_;
 		SOFADB_PUBLIC void calculate_revision();
+
+		maybe_string_t get_rev() const
+		{
+			if (!rev_)
+				return maybe_string_t();
+			return maybe_string_t(rev_.get().to_string());
+		}
 	};
 	typedef boost::shared_ptr<revision_t> revision_ptr;
 

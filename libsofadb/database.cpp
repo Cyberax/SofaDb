@@ -197,18 +197,19 @@ revision_ptr Database::put(const std::string &id, const maybe_string_t& old_rev,
 	if (parent_->keystore_->Get(opts, doc_rev_path, &prev_rev).ok())
 	{
 		//There's an existing document.
-	} else
-	{
-		//Totaly new document! Calculate its revision
-		std::string cur_rev(rev->rev_.get().to_string());
-		VLOG_MACRO(1) << "Creating document " << id << " in the database "
-				  << name_ << " revid=" << rev->rev_.get() << std::endl;
-
-		parent_->check(parent_->keystore_->Put(wo, doc_rev_path, cur_rev));
-
-		//Store the document itself
-		store(wo, rev);
+		if (!old_rev || prev_rev != old_rev.get())
+			return revision_ptr(); //Conflict
 	}
+
+	//Totaly new document! Calculate its revision
+	std::string cur_rev(rev->rev_.get().to_string());
+	VLOG_MACRO(1) << "Creating document " << id << " in the database "
+			  << name_ << " revid=" << rev->rev_.get() << std::endl;
+
+	parent_->check(parent_->keystore_->Put(wo, doc_rev_path, cur_rev));
+
+	//Store the document itself
+	store(wo, rev);
 
 	return rev;
 }
@@ -266,7 +267,6 @@ revision_ptr Database::get(const std::string &id, const maybe_string_t& rev)
 									 &version).ok())
 			return revision_ptr();
 	}
-
 
 	std::string val;
 	if (!parent_->keystore_->Get(ro, make_path(id, version), &val).ok())

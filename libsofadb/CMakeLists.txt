@@ -1,6 +1,7 @@
 PROJECT(libsofadb)
 
 FILE(GLOB libsofadb_SRCS
+	conflict.cpp
 	database.cpp
 	engine.cpp
 	erlang_compat.cpp
@@ -11,6 +12,7 @@ FILE(GLOB libsofadb_SRCS
 FILE(GLOB libsofadb_INCLUDES
 	binary_stream.hpp
 	common.h
+	conflict.h
 	database.h
 	engine.h
 	erlang_compat.h
