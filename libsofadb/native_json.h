@@ -5,25 +5,30 @@
 #include <map>
 #include <vector>
 #include "BigInteger.hh"
+#include <boost/interprocess/containers/string.hpp>
 
 #define MAX_ALIGNED_MEM 16
+#define SBO_LEN 32
 
 namespace sofadb {
 
+	typedef std::string jstring_t;
+
 	class json_value;
-	typedef std::map<std::string, json_value> submap_t;
+	typedef std::map<jstring_t, json_value> submap_t;
 	typedef std::vector<json_value> sublist_t;
 
 	namespace detail {
 		union storage_t
 		{
 			char max_aligned[MAX_ALIGNED_MEM];
-			char storage1[sizeof(std::string)];
-			char storage3[sizeof(int64_t)];
-			char storage2[sizeof(BigInteger)];
-			char storage4[sizeof(double)];
-			char storage5[sizeof(submap_t)];
-			char storage6[sizeof(sublist_t)];
+			char storage1[sizeof(jstring_t)];
+			char storage2[sizeof(int64_t)];
+			char storage3[sizeof(double)];
+			char storage4[sizeof(BigInteger)];
+			char storage5[sizeof(double)];
+			char storage6[sizeof(submap_t)];
+			char storage7[sizeof(sublist_t)];
 		};
 	};
 
@@ -31,6 +36,7 @@ namespace sofadb {
 		nil_d,
 		bool_d,
 		int_d,
+		double_d,
 		string_d,
 		big_int_d,
 		submap_d,
@@ -58,8 +64,8 @@ namespace sofadb {
 		void as_nil() { clear(); }
 		bool is_nil() { return disc_==nil_d; }
 
-#define STD_FUNCS(type, type_postfix, disc) \
-		json_value(const type &val) \
+#define STD_FUNCS(type, type_postfix, disc, is_explicit) \
+		is_explicit json_value(const type &val) \
 		{ \
 			disc_ = nil_d; \
 			make<type, disc>(val); \
@@ -92,12 +98,13 @@ namespace sofadb {
 			make<type, disc>(std::move(val)); \
 		}
 
-		STD_FUNCS(bool, bool, bool_d)
-		STD_FUNCS(int64_t, int, int_d)
-		STD_FUNCS(std::string, str, string_d)
-		STD_FUNCS(BigInteger, big_int, big_int_d)
-		STD_FUNCS(submap_t, submap, submap_d)
-		STD_FUNCS(sublist_t, sublist, sublist_d)
+		STD_FUNCS(bool, bool, bool_d, explicit)
+		STD_FUNCS(int64_t, int, int_d, )
+		STD_FUNCS(double, double, double_d, )
+		STD_FUNCS(jstring_t, str, string_d, )
+		STD_FUNCS(BigInteger, big_int, big_int_d, explicit)
+		STD_FUNCS(submap_t, submap, submap_d,)
+		STD_FUNCS(sublist_t, sublist, sublist_d, )
 
 		template<class Visitor> auto apply_visitor(
 			Visitor &vis) -> decltype(vis());
@@ -154,31 +161,28 @@ namespace sofadb {
 
 	void json_value::clear()
 	{
-		if (disc_ == nil_d)
+		switch(disc_)
 		{
-			;
-		} else if (disc_==bool_d)
-		{
-			;
-		} else if (disc_==int_d)
-		{
-			;
-		} else if (disc_==string_d)
-		{
-			using namespace std;
-			get_str().~string();
-		} else if (disc_==big_int_d)
-		{
-			get_big_int().~BigInteger();
-		} else if (disc_==submap_d)
-		{
-			get_submap().~submap_t();
-		} else if (disc_==sublist_d)
-		{
-			get_sublist().~sublist_t();
-		} else
-			assert(false);
-
+			case nil_d:
+			case bool_d:
+			case int_d:
+			case double_d:
+				break;
+			case string_d:
+				get_str().~jstring_t();
+				break;
+			case big_int_d:
+				get_big_int().~BigInteger();
+				break;
+			case submap_d:
+				get_submap().~submap_t();
+				break;
+			case sublist_d:
+				get_sublist().~sublist_t();
+				break;
+			default:
+				assert(false);
+		}
 		disc_ = nil_d;
 	}
 
@@ -203,9 +207,12 @@ namespace sofadb {
 		} else if (other.disc_==int_d)
 		{
 			make<int64_t, int_d>(other.get_int());
+		} else if (other.disc_==double_d)
+		{
+			make<double, double_d>(other.get_double());
 		} else if (other.disc_==string_d)
 		{
-			make<std::string, string_d>(other.get_str());
+			make<jstring_t, string_d>(other.get_str());
 		} else if (other.disc_==big_int_d)
 		{
 			make<BigInteger, big_int_d>(other.get_big_int());
@@ -236,9 +243,12 @@ namespace sofadb {
 		} else if (other.disc_==int_d)
 		{
 			make<int64_t, int_d>(other.get_int());
+		} else if (other.disc_==double_d)
+		{
+			make<double, double_d>(other.get_double());
 		} else if (other.disc_==string_d)
 		{
-			make<std::string, string_d>(std::move(other.get_str()));
+			make<jstring_t, string_d>(std::move(other.get_str()));
 		} else if (other.disc_==big_int_d)
 		{
 			make<BigInteger, big_int_d>(std::move(other.get_big_int()));
@@ -266,6 +276,9 @@ namespace sofadb {
 		} else if (disc_==int_d)
 		{
 			return vis(get_int());
+		} else if (disc_==double_d)
+		{
+			return vis(get_double());
 		} else if (disc_==string_d)
 		{
 			return vis(get_str());
@@ -294,6 +307,9 @@ namespace sofadb {
 		} else if (disc_==int_d)
 		{
 			return vis(get_int());
+		} else if (disc_==double_d)
+		{
+			return vis(get_double());
 		} else if (disc_==string_d)
 		{
 			return vis(get_str());
@@ -306,6 +322,38 @@ namespace sofadb {
 		} else if (disc_==sublist_d)
 		{
 			return vis(get_sublist());
+		} else
+			assert(false);
+	}
+
+	inline json_value::json_value(json_value &&o)
+	{
+		disc_ = nil_d;
+
+		if (o.disc_ == nil_d)
+		{
+			;
+		} else if (o.disc_==bool_d)
+		{
+			make<bool, bool_d>(std::move(o.get_bool()));
+		} else if (o.disc_==int_d)
+		{
+			make<int, int_d>(std::move(o.get_int()));
+		} else if (o.disc_==double_d)
+		{
+			make<double, double_d>(std::move(o.get_double()));
+		} else if (o.disc_==string_d)
+		{
+			make<jstring_t, string_d>(std::move(o.get_str()));
+		} else if (o.disc_==big_int_d)
+		{
+			make<BigInteger, big_int_d>(std::move(o.get_big_int()));
+		} else if (o.disc_==submap_d)
+		{
+			make<submap_t, submap_d>(std::move(o.get_submap()));
+		} else if (o.disc_==sublist_d)
+		{
+			make<sublist_t, sublist_d>(std::move(o.get_sublist()));
 		} else
 			assert(false);
 	}

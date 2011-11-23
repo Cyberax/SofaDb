@@ -6,9 +6,8 @@ using namespace sofadb;
 
 BOOST_AUTO_TEST_CASE(test_types)
 {
-	json_value val(123LL);
+	json_value val(int64_t(123));
 	BOOST_REQUIRE(val.as_int() == 123LL);
-	val.as_int() = 1234;
+	val.as_int() = int64_t(1234);
 	BOOST_REQUIRE(val.as_int() == 1234);
-//	val.get_bool();
 }
