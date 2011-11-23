@@ -4,6 +4,7 @@ FILE(GLOB test_sofadb_SRCS
 	test_main.cpp
 	test_erlang.cpp
 	test_erlang_json.cpp
+	test_native_json.cpp
 	test_sofadb.cpp
 	test_utils.cpp
 )

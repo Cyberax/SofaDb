@@ -7,6 +7,7 @@ FILE(GLOB libsofadb_SRCS
 	erlang_compat.cpp
 	erlang_json.cpp
 	errors.cpp
+	native_json.cpp
 )
 
 FILE(GLOB libsofadb_INCLUDES
@@ -18,6 +19,7 @@ FILE(GLOB libsofadb_INCLUDES
 	erlang_compat.h
 	erlang_json.h
 	errors.h
+	native_json.h
 	scope_guard.h
 )
 
