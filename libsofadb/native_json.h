@@ -47,6 +47,17 @@ namespace sofadb {
 	{
 		json_disc disc_;
 		detail::storage_t storage_;
+
+#ifndef NDEBUG
+		union {
+			jstring_t *_str_val;
+			int64_t *_int64_val;
+			double *_double_val;
+			BigInteger *_big_int_val;
+			submap_t *_submap_val;
+			sublist_t *_sublist_val;
+		};
+#endif
 	public:
 		json_value(const json_value& other);
 		json_value() { disc_ = nil_d; }
@@ -136,24 +147,49 @@ namespace sofadb {
 		{
 			assert(disc_ == nil_d);
 			disc_ = D;
+#ifndef NDEBUG
+			_str_val = reinterpret_cast<jstring_t*>(storage_.max_aligned);
+#endif
 			new (storage_.max_aligned) T();
 		}
 		template<class T, json_disc D> void make(const T &ref)
 		{
 			assert(disc_ == nil_d);
 			disc_ = D;
+#ifndef NDEBUG
+			_str_val = reinterpret_cast<jstring_t*>(storage_.max_aligned);
+#endif
 			new (storage_.max_aligned) T(ref);
 		}
 		template<class T, json_disc D> void make(T &&ref)
 		{
 			assert(disc_ == nil_d);
 			disc_ = D;
+#ifndef NDEBUG
+			_str_val = reinterpret_cast<jstring_t*>(storage_.max_aligned);
+#endif
 			new (storage_.max_aligned) T(std::move(ref));
 		}
 	};
 
-	SOFADB_PUBLIC std::ostream& operator << (std::ostream &str,
-											 const json_value &val);
+	SOFADB_PUBLIC std::string json_to_string(const json_value &val,
+											 bool pretty = false);
+	SOFADB_PUBLIC json_value string_to_json(const std::string &val);
+	inline std::ostream& operator << (std::ostream &str, const json_value &val)
+	{
+		return str << json_to_string(val, false);
+	}
+
+	SOFADB_PUBLIC bool operator < (const json_value &l, const json_value &r);
+	inline bool operator > (const json_value &l, const json_value &r)
+	{
+		return r<l;
+	}
+	SOFADB_PUBLIC bool operator == (const json_value &l, const json_value &r);
+	inline bool operator != (const json_value &l, const json_value &r)
+	{
+		return !(l == r);
+	}
 
 	//////////////////////////////////////////////////////////////////////////
 	//////////////////////////////////////////////////////////////////////////
@@ -358,6 +394,45 @@ namespace sofadb {
 			assert(false);
 	}
 
+	/*
+	struct double_visitor
+	{
+		const json_value &r_;
+		double_visitor(const json_value &r) : r_(r) {}
+
+		bool operator()() //nil_t
+		{
+			return true;
+		}
+
+		template<class S> struct second_visitor
+		{
+			const S& left_val_;
+			second_visitor(const S& left_val) : left_val_(left_val) {}
+
+			bool operator()() //nil_t
+			{
+				return true;
+			}
+
+			bool operator()(const S &r)
+			{
+				return left_val_ < r;
+			}
+
+			template<class K> bool operator()(const K &r)
+			{
+				throw std::bad_cast();
+			}
+		};
+
+		template<class T> bool operator()(const T &v)
+		{
+			second_visitor<T> vis(v);
+			return r_.apply_visitor(vis);
+		}
+	};
+	*/
 }; //namespace sofadb
 
 #endif //NATIVE_JSON_H

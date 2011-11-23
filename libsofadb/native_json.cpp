@@ -1,36 +1,480 @@
 #include "native_json.h"
+#include <yajl/yajl_parse.h>
+#include <yajl/yajl_gen.h>
+#include <BigIntegerUtils.hh>
+#include "errors.h"
 
 using namespace sofadb;
 
-struct output_visitor
+bool sofadb::operator == (const json_value &l, const json_value &r)
 {
-	std::ostream &str_;
-	output_visitor(std::ostream &str) : str_(str) {}
-
-	int operator()()
+	if (l.type() != r.type())
+		return false;
+	switch(l.type())
 	{
+		case nil_d:
+			return true;
+		case bool_d:
+			return l.get_bool() == r.get_bool();
+		case int_d:
+			return l.get_int() == r.get_int();
+		case double_d:
+			return l.get_double() == r.get_double();
+		case string_d:
+			return l.get_str() == r.get_str();
+		case big_int_d:
+			return l.get_big_int() == r.get_big_int();
+		case submap_d:
+			return l.get_submap() == r.get_submap();
+		case sublist_d:
+			return l.get_sublist() == r.get_sublist();
+		default:
+			assert(false);
 	}
+}
 
-	int operator()(bool val)
+bool sofadb::operator < (const json_value &l, const json_value &r)
+{
+	if (l.type() != r.type())
+		return false;
+	switch(l.type())
 	{
-		return 1;
+		case nil_d:
+			return true;
+		case bool_d:
+			return l.get_bool() < r.get_bool();
+		case int_d:
+			return l.get_int() < r.get_int();
+		case double_d:
+			return l.get_double() < r.get_double();
+		case string_d:
+			return l.get_str() < r.get_str();
+		case big_int_d:
+			return l.get_big_int() < r.get_big_int();
+		case submap_d:
+			return l.get_submap() < r.get_submap();
+		case sublist_d:
+			return l.get_sublist() < r.get_sublist();
+		default:
+			assert(false);
 	}
+}
 
-	template<class T> int operator()(const T &v)
+static void *yajl_malloc_impl(void *ctx, unsigned int sz)
+{
+	return malloc(sz);
+}
+
+static void yajl_free_impl(void *ctx, void * ptr)
+{
+	free(ptr);
+}
+
+static void * yajl_realloc_impl(void *ctx, void * ptr, unsigned int sz)
+{
+	return realloc(ptr, sz);
+}
+
+static yajl_alloc_funcs alloc_funcs = {
+	&yajl_malloc_impl,
+	&yajl_realloc_impl,
+	&yajl_free_impl,
+	0
+};
+
+static yajl_parser_config config = {1, 0};
+
+struct yajl_deleter
+{
+	void operator ()(yajl_handle hndl)
 	{
-
+		yajl_free(hndl);
 	}
 };
 
-std::ostream& operator << (std::ostream &str, const json_value &val)
+struct json_processor
 {
-	output_visitor vis(str);
-	val.apply_visitor(vis);
-	return str;
+	std::vector<json_value*> stack_;
+	result_code_t error_;
+};
+
+static json_value* advance_list_with(json_processor *proc, json_value && val)
+{
+	json_value* top=proc->stack_.back();
+	if (top->is_sublist())
+		top->get_sublist().push_back(std::move(val));
+	else
+	{
+		(*top) = std::move(val);
+		proc->stack_.pop_back();
+	}
+	return top;
 }
 
-void test()
+static int json_null(void * ctx)
 {
-	json_value v;
-
+	json_processor *proc = static_cast<json_processor*>(ctx);
+	advance_list_with(proc, json_value());
+	return 1;
 }
+
+static int json_boolean(void * ctx, int boolVal)
+{
+	json_processor *proc = static_cast<json_processor*>(ctx);
+	advance_list_with(proc, json_value((bool)boolVal));
+	return 1;
+}
+
+/** A callback which passes the string representation of the number
+ *  back to the client.  Will be used for all numbers when present */
+static int json_number(void * ctx, const char * numberVal,
+					unsigned int numberLen)
+{
+	json_processor *proc = static_cast<json_processor*>(ctx);
+	std::string digits((const char*)numberVal, numberLen);
+	if (digits.find_first_of("eE.")!=std::string::npos)
+	{
+		double val=0;
+		if (sscanf(digits.c_str(), "%lf", &val) == EOF)
+			return 0;
+		advance_list_with(proc, val);
+	} else
+	{
+		advance_list_with(proc, stringToBigInteger(digits));
+	}
+	return 1;
+}
+
+/** strings are returned as pointers into the JSON text when,
+ * possible, as a result, they are _not_ null padded */
+static int json_string(void * ctx, const unsigned char * stringVal,
+					unsigned int stringLen)
+{
+	json_processor *proc = static_cast<json_processor*>(ctx);
+	advance_list_with(proc, std::string((const char*)stringVal, stringLen));
+	return 1;
+}
+
+static int json_start_array(void * ctx)
+{
+	json_processor *proc = static_cast<json_processor*>(ctx);
+	json_value *new_elem=advance_list_with(proc, json_value());
+	new_elem->as_sublist();
+	proc->stack_.push_back(new_elem);
+	return 1;
+}
+
+static int json_end_array(void * ctx)
+{
+	json_processor *proc = static_cast<json_processor*>(ctx);
+	assert(!proc->stack_.empty());
+	proc->stack_.pop_back();
+	return 1;
+}
+
+static int json_start_map(void * ctx)
+{
+	json_processor *proc = static_cast<json_processor*>(ctx);
+	json_value *new_elem=advance_list_with(proc, json_value());
+	new_elem->as_submap();
+	proc->stack_.push_back(new_elem);
+	return 1;
+}
+
+static int json_map_key(void * ctx, const unsigned char * key,
+				 unsigned int stringLen)
+{
+	json_processor *proc = static_cast<json_processor*>(ctx);
+	json_value *top = proc->stack_.back();
+	assert(top->is_submap());
+
+	json_value *cur_val=&top->as_submap()[
+			std::string((const char*)key, stringLen)];
+	proc->stack_.push_back(cur_val);
+
+	return 1;
+}
+
+static int json_end_map(void * ctx)
+{
+	json_processor *proc = static_cast<json_processor*>(ctx);
+	assert(!proc->stack_.empty());
+	proc->stack_.pop_back();
+	return 1;
+}
+
+static yajl_callbacks json_callbacks = {
+	&json_null,
+	&json_boolean,
+	0, //json_integer
+	0, //yajl_double
+	&json_number,
+	&json_string,
+	&json_start_map,
+	&json_map_key,
+	&json_end_map,
+	&json_start_array,
+	&json_end_array,
+};
+
+static void handle_status(yajl_handle hndl, yajl_status status,
+						  const std::string &str)
+{
+	if (status==yajl_status_ok)
+		return;
+
+	unsigned char* err=yajl_get_error(hndl, 1,
+		(const unsigned char*)str.c_str(), str.size());
+	result_code_t res(result_code_t::sError, (const char*)err);
+	yajl_free_error(hndl, err);
+
+	boost::throw_exception(sofa_exception(res));
+}
+
+json_value sofadb::string_to_json(const std::string &str)
+{
+	json_value res;
+	res.as_submap();
+
+	json_processor processor;
+	processor.stack_.push_back(&res);
+
+	boost::shared_ptr<yajl_handle_t> hndl(
+				yajl_alloc(&json_callbacks, &config, &alloc_funcs, &processor),
+				yajl_deleter());
+	yajl_status status=yajl_parse(hndl.get(),
+								  (const unsigned char*)str.c_str(),
+								  str.size());
+	handle_status(hndl.get(), status, str);
+	yajl_status status2=yajl_parse_complete(hndl.get());
+	handle_status(hndl.get(), status2, str);
+
+	//assert(processor.stack_.size());
+	return res;
+}
+
+/*
+struct printer_context
+{
+	std::string res_;
+};
+
+struct SOFADB_LOCAL printer_deleter
+{
+	void operator ()(yajl_gen hndl)
+	{
+		yajl_gen_free(hndl);
+	}
+};
+
+static void json_print(void * ctx, const char * str, unsigned int len)
+{
+	printer_context *prn = static_cast<printer_context*>(ctx);
+	prn->res_.append(str, len);
+}
+
+static void check_status(yajl_gen_status st)
+{
+	if (st!=yajl_gen_status_ok)
+		err(result_code_t::sError) << "Unepxected return code "<<
+									  st<<" from the JSON printer";
+}
+
+static void print_map(boost::shared_ptr<yajl_gen_t> ptr, const erl_type_t &js);
+
+static void print_element(boost::shared_ptr<yajl_gen_t> ptr,
+						  const erl_type_t &tp)
+{
+	if (tp.type()==typeid(list_ptr_t))
+	{
+		//Array
+		check_status(yajl_gen_array_open(ptr.get()));
+		list_ptr_t cur=get_list(tp);
+		do
+		{
+			print_element(ptr, cur->val_);
+		} while(advance(&cur));
+
+		if (!is_nil(cur->tail_))
+			err(result_code_t::sError) << "Improper list inside JSON tuple";
+
+		check_status(yajl_gen_array_close(ptr.get()));
+	} else if (tp.type()==typeid(tuple_ptr_t))
+	{
+		//Submap
+		print_map(ptr, tp);
+	} else if (tp.type()==typeid(binary_ptr_t))
+	{
+		binary_ptr_t cur = boost::get<binary_ptr_t>(tp);
+		check_status(yajl_gen_string(ptr.get(),
+									 cur->binary_.data(), cur->binary_.size()));
+	} else if (tp.type()==typeid(BigInteger))
+	{
+		//Int
+		std::string num=bigIntegerToString(boost::get<BigInteger>(tp));
+		check_status(yajl_gen_number(ptr.get(), num.c_str(), num.length()));
+	} else if (tp.type()==typeid(atom_t))
+	{
+		//Boolean
+		const std::string &str=boost::get<const atom_t&>(tp).name_;
+		if (str=="true")
+			check_status(yajl_gen_bool(ptr.get(), 1));
+		else if (str=="false")
+			check_status(yajl_gen_bool(ptr.get(), 0));
+		else
+			err(result_code_t::sWrongRevision) << "Malformed boolean " << tp;
+	} else if (tp.type()==typeid(double))
+	{
+		char buf[32] = {0};
+		sprintf(buf, "%f", boost::get<double>(tp));
+		check_status(yajl_gen_number(ptr.get(), buf, strlen(buf)));
+	} else if (is_nil(tp))
+	{
+		//Null
+		check_status(yajl_gen_null(ptr.get()));
+	} else
+		err(result_code_t::sWrongRevision) << "Unexpected JSON term "<<tp;
+}
+
+static void print_map(boost::shared_ptr<yajl_gen_t> ptr, const erl_type_t &js)
+{
+	if (js.type()!=typeid(tuple_ptr_t))
+		err(result_code_t::sWrongRevision) << "Not a JSON document";
+	tuple_ptr_t cur_tp = boost::get<tuple_ptr_t>(js);
+	if (cur_tp->elements_.size()!=1)
+		err(result_code_t::sError) << "Malformed JSON";
+	const erl_type_t &sub = cur_tp->elements_.at(0);
+
+	if (is_nil(sub))
+	{
+		check_status(yajl_gen_map_open(ptr.get()));
+		check_status(yajl_gen_map_close(ptr.get()));
+		return;
+	}
+
+	if (sub.type()!=typeid(list_ptr_t))
+		err(result_code_t::sWrongRevision) << "Document is not well formed";
+	const list_ptr_t &lst=boost::get<list_ptr_t>(sub);
+
+	check_status(yajl_gen_map_open(ptr.get()));
+	list_ptr_t cur=lst;
+	do
+	{
+		//This list should contain only tuples
+		if (cur->val_.type()!=typeid(tuple_ptr_t))
+			err(result_code_t::sError) << "Unexpected JSON structure, "
+										  "got "<<cur->val_.type().name()<<
+										  " while expecting a tuple";
+		const tuple_ptr_t &tp=boost::get<tuple_ptr_t>(cur->val_);
+		if (tp->elements_.size()!=2)
+			err(result_code_t::sError) << "Unexpected JSON structure, "
+										  "got "<<tp->elements_.size()<<
+										  " elements instead of 2";
+
+		print_element(ptr, tp->elements_.at(0));
+		print_element(ptr, tp->elements_.at(1));
+	} while(advance(&cur));
+	if (!is_nil(cur->tail_))
+		err(result_code_t::sError) << "Improper list in JSON map";
+
+	check_status(yajl_gen_map_close(ptr.get()));
+}
+
+std::string erlang::json_to_string(const erl_type_t &js, bool pretty)
+{
+	printer_context ctx;
+	yajl_gen_config json_gen_config = {pretty?1:0, " "};
+	auto ptr=boost::shared_ptr<yajl_gen_t>(
+				yajl_gen_alloc2(&json_print, &json_gen_config,
+								&alloc_funcs, &ctx),
+				printer_deleter());
+
+	print_map(ptr, js);
+
+	yajl_gen_clear(ptr.get());
+	return ctx.res_;
+}
+
+std::string erlang::binary_to_string(const erl_type_t &tp)
+{
+	binary_ptr_t ptr=boost::get<binary_ptr_t>(tp);
+	return std::string(ptr->binary_.begin(), ptr->binary_.end());
+}
+
+list_ptr_t erlang::get_json_list(const erl_type_t& tp)
+{
+	tuple_ptr_t ptr=boost::get<tuple_ptr_t>(tp);
+	assert(ptr->elements_.size()==1);
+
+	const erl_type_t elem=ptr->elements_.at(0);
+	return try_list(elem);
+}
+
+static bool find_key(const erl_type_t &tp,
+					 const std::string &str, erl_type_t **out)
+{
+	erl_type_t str_bin=binary_t::make_from_string(str);
+
+	list_ptr_t lst=get_json_list(tp);
+	if (!lst)
+		return false;
+
+	do
+	{
+		tuple_ptr_t tpl=boost::get<tuple_ptr_t>(lst->val_);
+		assert(tpl->elements_.size()==2);
+
+		if (deep_eq(tpl->elements_.at(0),str_bin))
+		{
+			if (out)
+				*out = &tpl->elements_.at(1);
+			return true;
+		}
+	} while(advance(&lst));
+	assert(is_nil(lst->tail_));
+
+	return false;
+}
+
+bool erlang::has_key(const erl_type_t &tp, const std::string &str)
+{
+	return find_key(tp, str, 0);
+}
+
+const erl_type_t& erlang::get_val(const erl_type_t &tp, const std::string &str)
+{
+	erl_type_t *res = 0;
+	if (!find_key(tp, str, &res))
+		throw boost::bad_get();
+	return *res;
+}
+
+erl_type_t& erlang::put_val(erl_type_t& tp, const std::string &str)
+{
+	erl_type_t *out;
+	if (find_key(tp, str, &out))
+		return *out;
+
+	tuple_ptr_t ptr=boost::get<tuple_ptr_t>(tp);
+	assert(ptr->elements_.size()==1);
+	const erl_type_t &cur_elem = ptr->elements_.at(0);
+
+	list_ptr_t head=list_t::make();
+	head->tail_=cur_elem;
+	ptr->elements_.at(0) = head;
+
+	tuple_ptr_t tpl=tuple_t::make();
+	head->val_ = tpl;
+	tpl->elements_.push_back(binary_t::make_from_string(str));
+	tpl->elements_.push_back(erl_nil);
+
+	return tpl->elements_.back();
+}
+
+erl_type_t erlang::create_submap()
+{
+	tuple_ptr_t tpl=tuple_t::make();
+	tpl->elements_.push_back(erl_nil);
+	return tpl;
+}
+*/
