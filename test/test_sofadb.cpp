@@ -1,5 +1,6 @@
 #include <boost/test/unit_test.hpp>
 #include <boost/lexical_cast.hpp>
+#include <boost/tuple/tuple.hpp>
 
 #include "engine.h"
 #include "database.h"
@@ -44,16 +45,13 @@ BOOST_AUTO_TEST_CASE(test_database_put)
 		old = std::move(rev.rev_);
 	}
 
-//	revision_ptr rev=ptr->put("Hello", maybe_string_t(),
-//							  json_value(submap_d),
-//							  std::move(js), true);
-	//BOOST_REQUIRE(rev->rev_.get().rev_ == "2028f9ff8e5094cfc9e4eb8bcca19e83");
+	Database::res_t rev2=ptr->get(id);
+	Database::res_t rev3=ptr->get(id, old);
+	BOOST_REQUIRE_EQUAL(rev2.first.rev_, rev3.first.rev_);
+	BOOST_REQUIRE_EQUAL(rev2.second, rev3.second);
 
-//	revision_ptr rev2=ptr->get("Hello");
-//	revision_ptr rev3=ptr->get("Hello", rev->rev_.get().to_string());
-
-//	BOOST_REQUIRE_EQUAL(rev->json_body_, rev2->json_body_);
-//	BOOST_REQUIRE_EQUAL(rev->json_body_, rev3->json_body_);
+	BOOST_REQUIRE_EQUAL(js, rev2.second);
+	BOOST_REQUIRE_EQUAL(js, rev3.second);
 }
 
 BOOST_AUTO_TEST_CASE(test_database_update)

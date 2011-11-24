@@ -36,7 +36,7 @@ revision_num_t::revision_num_t(const jstring_t &rev)
 					<< "Invalid revision: " << rev;
 
 		jstring_t rev_num = rev.substr(0, pos);
-		jstring_t rev_id = rev.substr(pos);
+		jstring_t rev_id = rev.substr(pos+1);
 
 		if (rev_num.find_first_not_of("0123456789")!=jstring_t::npos)
 			err(result_code_t::sWrongRevision)
@@ -128,7 +128,7 @@ revision_t Database::put(const jstring_t &id, const revision_num_t& old_rev,
 	//Check if there is an old revision with this ID
 	std::string prev_rev;
 	std::string doc_rev_path=make_path(id, 0);
-	if (0)//parent_->keystore_->Get(opts, doc_rev_path, &prev_rev).ok())
+	if (parent_->keystore_->Get(opts, doc_rev_path, &prev_rev).ok())
 	{
 		//There's an existing document.
 		if (old_rev.empty() || prev_rev != old_rev.full_string())
@@ -156,17 +156,17 @@ revision_t Database::put(const jstring_t &id, const revision_num_t& old_rev,
 	assert(!rev.rev_.empty());
 
 	//Write tip pointer
-//	parent_->check(
-//		parent_->keystore_->Put(wo, doc_rev_path, rev.rev_.full_string()));
+	parent_->check(
+		parent_->keystore_->Put(wo, doc_rev_path, rev.rev_.full_string()));
 
 	std::string doc_data_path=make_path(rev.id_, &rev.rev_.full_string());
 	//Write the document
-//	parent_->check(parent_->keystore_->Put(wo, doc_data_path, body));
+	parent_->check(parent_->keystore_->Put(wo, doc_data_path, body));
 
 	VLOG_MACRO(1) << "Created document " << id << " in the database "
 			  << name_ << " revid=" << rev.rev_ << std::endl;
 
-	return rev;
+	return std::move(rev);
 }
 
 jstring_t Database::make_path(const jstring_t &id, const std::string *rev)
@@ -179,39 +179,44 @@ jstring_t Database::make_path(const jstring_t &id, const std::string *rev)
 }
 
 
-//revision_ptr Database::get(const std::string &id, const maybe_string_t& rev)
-//{
-//	//Make sure that we have a stable view. No locking here!
-//	const Snapshot *snap=parent_->keystore_->GetSnapshot();
-//	ON_BLOCK_EXIT_OBJ(*parent_->keystore_, &DB::ReleaseSnapshot, snap);
+Database::res_t Database::get(const jstring_t &id, const revision_num_t& rev)
+{
+	//Make sure that we have a stable view. No locking here!
+	const Snapshot *snap=parent_->keystore_->GetSnapshot();
+	ON_BLOCK_EXIT_OBJ(*parent_->keystore_, &DB::ReleaseSnapshot, snap);
 
-//	ReadOptions ro;
-//	ro.snapshot=snap;
+	ReadOptions ro;
+	ro.snapshot=snap;
 
-//	std::string version;
-//	if (rev)
-//		version = rev.get();
-//	else
-//	{
-//		if (!parent_->keystore_->Get(ro, make_path(id, maybe_string_t()),
-//									 &version).ok())
-//			return revision_ptr();
-//	}
+	std::pair<revision_t, json_value> res(
+				std::make_pair(revision_t(), json_value()));
 
-//	std::string val;
-//	if (!parent_->keystore_->Get(ro, make_path(id, version), &val).ok())
-//		return revision_ptr();
+	jstring_t path;
+	if (rev.empty())
+	{
+		jstring_t version;
+		if (!parent_->keystore_->Get(ro, make_path(id, 0), &version).ok())
+			return std::move(res);
+		path = make_path(id, &version);
 
-//	json_value deserialized=string_to_json(val);
+		res.first.id_=id;
+		res.first.rev_ = revision_num_t(version);
+	} else
+	{
+		res.first.id_ = id;
+		res.first.rev_ = rev;
+		path = make_path(id, &rev.full_string());
+	}
 
-//	revision_ptr res(new revision_t());
-//	res->id_ = id;
-//	res->rev_ = rev;
+	jstring_t val;
+	parent_->check(parent_->keystore_->Get(ro, path, &val));
 
-//	res->deleted_ = deserialized["deleted"].get_bool();
-//	res->previous_rev_ = revision_info_t(deserialized["prev_revid"].get_str());
-//	//res->atts_; //TODO: attachments
-//	res->json_body_ = std::move(deserialized["data"]);
+	json_value serialized=string_to_json(val);
+	res.first.deleted_ = serialized["deleted"].get_bool();
+	res.first.previous_rev_ = revision_num_t(serialized["prev_revid"].get_str());
+	//serialized["atts"] = json_value(); //TODO: attachments
 
-//	return res;
-//}
+	res.second = std::move(serialized["data"]);
+
+	return std::move(res);
+}

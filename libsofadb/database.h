@@ -74,6 +74,11 @@ namespace sofadb {
 		const jstring_t& uniq() const { return uniq_; }
 	};
 
+	inline bool operator == (const revision_num_t &l, const revision_num_t &r)
+	{
+		return l.num() == r.num() && l.uniq() == r.uniq();
+	}
+
 	inline std::ostream& operator << (std::ostream& str,
 									  const revision_num_t &r)
 	{
@@ -119,6 +124,8 @@ namespace sofadb {
 		//Cached revision info, can be computed based on the previous
 		//revision
 		revision_num_t rev_;
+
+		bool empty() const { return id_.empty(); }
 	};
 
 	/**
@@ -151,6 +158,8 @@ namespace sofadb {
 
 		friend class DbEngine;
 	public:
+		typedef std::pair<revision_t, json_value> res_t;
+
 		const json_value& get_meta() const {return json_meta_;}
 
 		bool operator == (const Database &other) const
@@ -158,19 +167,16 @@ namespace sofadb {
 			return other.json_meta_ == json_meta_;
 		}
 
-		SOFADB_PUBLIC revision_t get(
-			const jstring_t &id, const maybe_string_t& rev=maybe_string_t());
+		SOFADB_PUBLIC res_t get(const jstring_t &id,
+			const revision_num_t& = revision_num_t::empty_revision);
 		SOFADB_PUBLIC revision_t put(
 			const jstring_t &id, const revision_num_t& old_rev,
 			const json_value &meta, const json_value &content, bool batched);
 		SOFADB_PUBLIC revision_t remove(
-			const jstring_t &id, const maybe_string_t& rev,
-			bool batched);
+			const jstring_t &id, const revision_num_t& rev, bool batched);
 		SOFADB_PUBLIC revision_t copy(
-			const jstring_t &id,
-			const maybe_string_t& rev,
-			const jstring_t &dest_id,
-			const maybe_string_t& dest_rev,
+			const jstring_t &id, const revision_num_t &rev,
+			const jstring_t &dest_id, const revision_num_t &dest_rev,
 			bool batched);
 
 		std::pair<json_value, json_value>
