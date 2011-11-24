@@ -5,6 +5,7 @@
 // The templates used by these constructors and converters are at the bottom of
 // BigUnsigned.hh.
 
+BigUnsigned::BigUnsigned(uint64_t  x)      { initFromPrimitive      (x); }
 BigUnsigned::BigUnsigned(unsigned long  x) { initFromPrimitive      (x); }
 BigUnsigned::BigUnsigned(unsigned int   x) { initFromPrimitive      (x); }
 BigUnsigned::BigUnsigned(unsigned short x) { initFromPrimitive      (x); }

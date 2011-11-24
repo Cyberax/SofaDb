@@ -35,7 +35,7 @@ BOOST_AUTO_TEST_CASE(test_database_put)
 
 	json_value js=string_to_json("{\"Hello\" : \"world\"}");
 	char buf[32];
-	for(int f=0;f< 100000; ++f)
+	for(int f=0;f<100; ++f)
 	{
 		sprintf(buf, "Hello%d", f);
 		revision_t rev=ptr->put(buf, maybe_string_t(),

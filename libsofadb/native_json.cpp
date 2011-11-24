@@ -14,8 +14,8 @@ json_value json_value::normalize_int() const
 	else if (type()==big_int_d)
 	{
 		const BigInteger &bi=get_big_int();
-		if (bi>=INT64_MIN && bi <= INT64_MAX)
-			return json_value(int64_t(bi.toLong()));
+		if (bi < BigInteger(int64_t(INT64_MAX)))
+			return json_value(int64_t(bi.toLongLong()));
 		return *this;
 	} else
 		throw std::bad_cast();
@@ -133,13 +133,16 @@ static json_value* advance_list_with(json_processor *proc, json_value && val)
 {
 	json_value* top=proc->stack_.back();
 	if (top->is_sublist())
+	{
 		top->get_sublist().push_back(std::move(val));
+		return &top->get_sublist().back();
+	}
 	else
 	{
 		(*top) = std::move(val);
 		proc->stack_.pop_back();
+		return top;
 	}
-	return top;
 }
 
 static int json_null(void * ctx)
@@ -172,7 +175,8 @@ static int json_number(void * ctx, const char * numberVal,
 	} else
 	{
 		json_value v(stringToBigInteger(digits));
-		advance_list_with(proc, v.normalize_int());
+		json_value v2(v.normalize_int());
+		advance_list_with(proc, std::move(v2));
 	}
 	return 1;
 }
@@ -207,7 +211,7 @@ static int json_end_array(void * ctx)
 static int json_start_map(void * ctx)
 {
 	json_processor *proc = static_cast<json_processor*>(ctx);
-	json_value *new_elem=advance_list_with(proc, json_value());
+	json_value *new_elem=advance_list_with(proc, json_value(submap_d));
 	new_elem->as_submap();
 	proc->stack_.push_back(new_elem);
 	return 1;
@@ -331,7 +335,9 @@ struct json_printer
 	}
 	void operator()(double d)
 	{
-		check_status(yajl_gen_double(ptr_.get(), d));
+		char buf[64];
+		int ln=sprintf(buf, "%lf", d);
+		check_status(yajl_gen_number(ptr_.get(), buf, ln));
 	}
 	void operator()(const jstring_t &s)
 	{

@@ -55,6 +55,7 @@ public:
 	~BigUnsigned() {}
 
 	// Constructors from primitive integer types
+	BigUnsigned(uint64_t  x);
 	BigUnsigned(unsigned long  x);
 	BigUnsigned(         long  x);
 	BigUnsigned(unsigned int   x);

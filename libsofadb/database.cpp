@@ -79,7 +79,7 @@ Database::Database(DbEngine *parent, const jstring_t &name)
 	  json_meta_(submap_d)
 {
 	//Instance start time is in nanoseconds
-	json_meta_["instance_start_time"].as_int() = time(NULL)*100000;
+	json_meta_["instance_start_time"].as_int() = int64_t(time(NULL))*100000;
 	json_meta_["db_name"] = name;
 }
 
