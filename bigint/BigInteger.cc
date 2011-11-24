@@ -79,6 +79,8 @@ BigInteger::BigInteger(long  x) : sign(signOf(x)), mag(magOf<long , unsigned lon
 BigInteger::BigInteger(int   x) : sign(signOf(x)), mag(magOf<int  , unsigned int  >(x)) {}
 BigInteger::BigInteger(short x) : sign(signOf(x)), mag(magOf<short, unsigned short>(x)) {}
 
+BigInteger::BigInteger(int64_t x) : sign(signOf(x)), mag(magOf<int64_t, uint64_t>(x)) {}
+
 // CONVERSION TO PRIMITIVE INTEGERS
 
 /* Reuse BigUnsigned's conversion to an unsigned primitive integer.

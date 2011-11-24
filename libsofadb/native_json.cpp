@@ -58,12 +58,20 @@ bool sofadb::operator == (const json_value &l, const json_value &r)
 
 bool sofadb::operator < (const json_value &l, const json_value &r)
 {
-	if (l.type() != r.type())
-		return false;
+	if (l.type()==big_int_d && r.type()==int_d ||
+		r.type()==big_int_d && l.type()==int_d)
+	{
+		json_value l1=l.normalize_int();
+		json_value l2=r.normalize_int();
+		return l1.type()<l2.type() || l1.get_int() < l2.get_int();
+	}
+
+	if (l.type() < r.type())
+		return true;
 	switch(l.type())
 	{
 		case nil_d:
-			return true;
+			return false;
 		case bool_d:
 			return l.get_bool() < r.get_bool();
 		case int_d:
@@ -155,7 +163,7 @@ static int json_number(void * ctx, const char * numberVal,
 {
 	json_processor *proc = static_cast<json_processor*>(ctx);
 	std::string digits((const char*)numberVal, numberLen);
-	if (digits.find_first_of("eE.")!=std::string::npos)
+	if (digits.find_first_of("eE.")!=jstring_t::npos)
 	{
 		double val=0;
 		if (sscanf(digits.c_str(), "%lf", &val) == EOF)
@@ -175,7 +183,7 @@ static int json_string(void * ctx, const unsigned char * stringVal,
 					unsigned int stringLen)
 {
 	json_processor *proc = static_cast<json_processor*>(ctx);
-	advance_list_with(proc, std::string((const char*)stringVal, stringLen));
+	advance_list_with(proc, jstring_t((const char*)stringVal, stringLen));
 	return 1;
 }
 
@@ -213,7 +221,7 @@ static int json_map_key(void * ctx, const unsigned char * key,
 	assert(top->is_submap());
 
 	json_value *cur_val=&top->as_submap()[
-			std::string((const char*)key, stringLen)];
+			jstring_t((const char*)key, stringLen)];
 	proc->stack_.push_back(cur_val);
 
 	return 1;
@@ -242,7 +250,7 @@ static yajl_callbacks json_callbacks = {
 };
 
 static void handle_status(yajl_handle hndl, yajl_status status,
-						  const std::string &str)
+						  const jstring_t &str)
 {
 	if (status==yajl_status_ok)
 		return;
@@ -255,7 +263,7 @@ static void handle_status(yajl_handle hndl, yajl_status status,
 	boost::throw_exception(sofa_exception(res));
 }
 
-json_value sofadb::string_to_json(const std::string &str)
+json_value sofadb::string_to_json(const jstring_t &str)
 {
 	json_value res;
 	res.as_submap();
@@ -279,7 +287,7 @@ json_value sofadb::string_to_json(const std::string &str)
 
 struct printer_context
 {
-	std::string res_;
+	jstring_t &res_;
 };
 
 struct SOFADB_LOCAL printer_deleter
@@ -317,7 +325,7 @@ struct json_printer
 	}
 	void operator()(int64_t i)
 	{
-		std::string stringy=boost::lexical_cast<std::string>(i);
+		jstring_t stringy=boost::lexical_cast<jstring_t>(i);
 		check_status(yajl_gen_number(ptr_.get(), stringy.data(),
 									 stringy.size()));
 	}
@@ -325,7 +333,7 @@ struct json_printer
 	{
 		check_status(yajl_gen_double(ptr_.get(), d));
 	}
-	void operator()(const std::string &s)
+	void operator()(const jstring_t &s)
 	{
 		check_status(yajl_gen_string(ptr_.get(),
 									 (const unsigned char*)(s.data()),
@@ -333,7 +341,7 @@ struct json_printer
 	}
 	void operator()(const BigInteger &b)
 	{
-		std::string num=bigIntegerToString(b);
+		jstring_t num=bigIntegerToString(b);
 		check_status(yajl_gen_number(ptr_.get(),
 									 num.data(),
 									 num.length()));
@@ -343,7 +351,7 @@ struct json_printer
 		check_status(yajl_gen_map_open(ptr_.get()));
 		for(auto i=map.begin(), iend=map.end();i!=iend;++i)
 		{
-			const std::string &k=i->first;
+			const jstring_t &k=i->first;
 			check_status(yajl_gen_string(ptr_.get(),
 										 (const unsigned char*)k.data(),
 										 k.size()));
@@ -354,26 +362,23 @@ struct json_printer
 	void operator()(const sublist_t &lst)
 	{
 		check_status(yajl_gen_array_open(ptr_.get()));
-		for(const auto &el : lst)
-			el.apply_visitor(*this);
+		for(auto i = lst.begin(), iend=lst.end(); i!=iend; ++i)
+			i->apply_visitor(*this);
 		check_status(yajl_gen_array_close(ptr_.get()));
 	}
 };
 
-std::string sofadb::json_to_string(const json_value &val, bool pretty)
+void sofadb::json_to_string(jstring_t &append_to,
+							const json_value &val, bool pretty)
 {
-	printer_context ctx;
-	ctx.res_.reserve(128);
+	printer_context ctx {append_to};
 	yajl_gen_config json_gen_config = {pretty?1:0, " "};
 	auto ptr=boost::shared_ptr<yajl_gen_t>(
 				yajl_gen_alloc2(&json_print, &json_gen_config,
 								&alloc_funcs, &ctx),
 				printer_deleter());
 
-	json_printer p;
-	p.ptr_ = ptr;
+	json_printer p {ptr};
 	val.apply_visitor(p);
-
 	yajl_gen_clear(ptr.get());
-	return ctx.res_;
 }

@@ -13,7 +13,7 @@ BOOST_AUTO_TEST_CASE(test_types)
 	BOOST_REQUIRE(val.as_int() == 1234);
 }
 
-static json_value roundtrip(const std::string &js)
+static json_value roundtrip(const jstring_t &js)
 {
 	json_value res=string_to_json(js);
 	json_value res2=string_to_json(json_to_string(res));

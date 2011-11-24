@@ -60,6 +60,7 @@ public:
 	BigInteger(         int   x);
 	BigInteger(unsigned short x);
 	BigInteger(         short x);
+	BigInteger(         int64_t x);
 
 	/* Converters to primitive integer types
 	 * The implicit conversion operators caused trouble, so these are now

@@ -39,4 +39,8 @@ typedef std::lock_guard<std::recursive_mutex> guard_t;
 #include <glog/logging.h>
 #define VLOG_MACRO(lev) if(VLOG_IS_ON(lev)) VLOG(lev)
 
+//#include <ext/vstring.h>
+//typedef __gnu_cxx::__vstring jstring_t;
+typedef std::string jstring_t;
+
 #endif // COMMON_H

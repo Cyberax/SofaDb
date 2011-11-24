@@ -5,6 +5,11 @@
 #include "native_json.h"
 #include <boost/optional.hpp>
 
+#define SD_SYSTEM_DB "_sys"
+#define SD_DATA_DB "_data"
+#define DB_SEPARATOR "!"
+#define REV_SEPARATOR "@"
+
 namespace leveldb {
 	class DB;
 	class Status;
@@ -15,36 +20,39 @@ namespace leveldb {
 namespace sofadb {
 
 	class DbEngine;
-	typedef boost::optional<std::string> maybe_string_t;
+	typedef boost::optional<jstring_t> maybe_string_t;
 
 	class inline_attachment_t
 	{
-		std::string name_, content_type_;
+		jstring_t name_, content_type_;
 		uint8_t md5_[16];
 	};
 	typedef std::vector<inline_attachment_t> attachment_vector_t;
 
-	struct revision_info_t
+	class revision_num_t
 	{
-		SOFADB_PUBLIC static const revision_info_t empty_revision;
+		jstring_t stringed_;
+		uint32_t num_; //This is a revision number
+		jstring_t uniq_; //Document's MD5 hash or other unique ID
 
-		uint32_t id_; //This is a revision number
-		std::string rev_; //Document's MD5 hash or other ID
+	public:
+		SOFADB_PUBLIC static const revision_num_t empty_revision;
 
-		revision_info_t() : id_() {}
-		revision_info_t(uint32_t id, const std::string &rev);
-		revision_info_t(const std::string &);
+		revision_num_t() : num_() {}
+		revision_num_t(uint32_t num, const jstring_t &uniq);
+		revision_num_t(const jstring_t &);
 
-		const std::string& to_string() const { return stringed_; };
-	private:
-		std::string stringed_;
+		bool empty() const { return num_==0; }
+
+		const jstring_t& full_string() const { return stringed_; };
+		uint32_t num() const { return num_; }
+		const jstring_t& uniq() const { return uniq_; }
 	};
 
 	inline std::ostream& operator << (std::ostream& str,
-									  const revision_info_t &r)
+									  const revision_num_t &r)
 	{
-		str << r.to_string();
-		return str;
+		return str << r.full_string();
 	}
 
 	/**
@@ -77,28 +85,18 @@ namespace sofadb {
 	  */
 	struct revision_t
 	{
-		std::string id_; //The immutable document ID
-
+		jstring_t id_; //The immutable document ID
 		bool deleted_;
-		//Revision in the format num-MD5 where MD5 is a hash of the document's
-		//contents.
-		revision_info_t previous_rev_;
-		json_value json_body_;
+
+		revision_num_t previous_rev_;
 		attachment_vector_t atts_;
 
 		//Cached revision info, can be computed based on the previous
 		//revision
-		boost::optional<revision_info_t> rev_;
-		SOFADB_PUBLIC void calculate_revision();
-
-		maybe_string_t get_rev() const
-		{
-			if (!rev_)
-				return maybe_string_t();
-			return maybe_string_t(rev_.get().to_string());
-		}
+		revision_num_t rev_;
 	};
-	typedef boost::shared_ptr<revision_t> revision_ptr;
+	SOFADB_PUBLIC revision_num_t compute_revision(
+		const revision_num_t &prev, bool deleted, const jstring_t &body);
 
 	/**
 		Database should have the following metadata present.
@@ -123,9 +121,9 @@ namespace sofadb {
 
 		bool closed_;
 		json_value json_meta_;
-		std::string name_;
+		jstring_t name_;
 
-		Database(DbEngine *parent, const std::string &name);
+		Database(DbEngine *parent, const jstring_t &name);
 		Database(DbEngine *parent, json_value &&meta);
 
 		friend class DbEngine;
@@ -137,30 +135,30 @@ namespace sofadb {
 			return other.json_meta_ == json_meta_;
 		}
 
-		SOFADB_PUBLIC revision_ptr get(
-			const std::string &id, const maybe_string_t& rev=maybe_string_t());
-		SOFADB_PUBLIC revision_ptr put(
-			const std::string &id, const maybe_string_t& rev,
-			const json_value &meta, json_value &&content, bool batched);
-		SOFADB_PUBLIC revision_ptr remove(
-			const std::string &id, const maybe_string_t& rev,
+		SOFADB_PUBLIC revision_t get(
+			const jstring_t &id, const maybe_string_t& rev=maybe_string_t());
+		SOFADB_PUBLIC revision_t put(
+			const jstring_t &id, const maybe_string_t& old_rev,
+			const json_value &meta, const json_value &content, bool batched);
+		SOFADB_PUBLIC revision_t remove(
+			const jstring_t &id, const maybe_string_t& rev,
 			bool batched);
-		SOFADB_PUBLIC revision_ptr copy(
-			const std::string &id,
+		SOFADB_PUBLIC revision_t copy(
+			const jstring_t &id,
 			const maybe_string_t& rev,
-			const std::string &dest_id,
+			const jstring_t &dest_id,
 			const maybe_string_t& dest_rev,
 			bool batched);
 
-	private:
-		void check_closed();
 		std::pair<json_value, json_value>
 			sanitize_and_get_reserved_words(const json_value &tp);
+	private:
+		void check_closed();
 
-		void store(const leveldb::WriteOptions &wo, revision_ptr ptr);
-		std::string make_path(const std::string &id, maybe_string_t rev);
+		void store(const leveldb::WriteOptions &wo,
+				   const revision_t &rev, const jstring_t &body);
+		jstring_t make_path(const jstring_t &id, const std::string *rev);
 	};
-	typedef boost::shared_ptr<Database> database_ptr;
 
 }; //namespace sofadb
 
