@@ -1,7 +1,6 @@
 #include <boost/test/unit_test.hpp>
 #include "native_json.h"
 #include <boost/lexical_cast.hpp>
-#include "BigIntegerUtils.hh"
 
 using namespace sofadb;
 
@@ -45,7 +44,7 @@ BOOST_AUTO_TEST_CASE(test_native_programmatic_json)
 	root.as_submap()["Hello"].as_str()="world";
 	root.as_submap()["test"].as_nil();
 
-	root.as_submap()["sub"].as_submap()["a"]=BigInteger(1234214);
+	root.as_submap()["sub"].as_submap()["a"]=bignum_t("1234214");
 
 	json_value js=string_to_json("{"
 							 "\"test\": null,"
@@ -57,12 +56,11 @@ BOOST_AUTO_TEST_CASE(test_native_programmatic_json)
 
 BOOST_AUTO_TEST_CASE(test_normalization)
 {
-	json_value l(BigInteger(1234));
+	json_value l(bignum_t("1234"));
 	json_value r(int64_t(1234));
 	BOOST_REQUIRE_EQUAL(l, r);
 
-	json_value l1(stringToBigInteger(
-					  "834181234214782364897264982673496739836741789"));
+	json_value l1(bignum_t("834181234214782364897264982673496739836741789"));
 	json_value r1(int64_t(1234));
 	BOOST_REQUIRE_NE(l1, r1);
 

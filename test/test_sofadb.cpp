@@ -34,12 +34,14 @@ BOOST_AUTO_TEST_CASE(test_database_put)
 	database_ptr ptr=engine.create_a_database("test");
 
 	json_value js=string_to_json("{\"Hello\" : \"world\"}");
-	char buf[32];
-	for(int f=0;f<100; ++f)
+
+	std::string id = "Hello";
+
+	revision_num_t old;
+	for(int f=0;f<100000; ++f)
 	{
-		sprintf(buf, "Hello%d", f);
-		revision_t rev=ptr->put(buf, maybe_string_t(),
-								  json_value(submap_d), js, true);
+		revision_t rev=ptr->put(id, old, json_value(submap_d), js, true);
+		old = std::move(rev.rev_);
 	}
 
 //	revision_ptr rev=ptr->put("Hello", maybe_string_t(),

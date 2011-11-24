@@ -2,10 +2,54 @@
 #include <yajl/yajl_parse.h>
 #include <yajl/yajl_gen.h>
 #include <boost/lexical_cast.hpp>
-#include <BigIntegerUtils.hh>
 #include "errors.h"
 
 using namespace sofadb;
+static const bignum_t max_int_decimal("9223372036854775807"); //2^63
+static const bignum_t min_int_decimal("-9223372036854775808"); //-(2^63)-1
+
+bool sofadb::operator < (const bignum_t &l, const bignum_t &r)
+{
+	const bool lneg = l.digits_.at(0) == '-';
+	const bool rneg = r.digits_.at(0) == '-';
+
+	//Check for unequal signs
+	if(lneg && !rneg)
+		return true;
+	if (!lneg && rneg)
+		return false;
+
+	//Signs are equal.
+	if (l.digits_.size()<r.digits_.size())
+		return !lneg;
+
+	//Use STRING comparison to find out the relation of numbers
+	//It's safe because the length of the left number is equal
+	//to the length of the right number so lexiographical string
+	//comparison (in all sane encodings) produces the same result
+	//as numerical one.
+	return l.digits_ < r.digits_;
+}
+
+bool sofadb::operator < (const graft_t &l, const graft_t &r)
+{
+	if (l.empty() && r.empty())
+		return false;
+	if (l.empty() && !r.empty())
+		return false;
+	if (r.empty() && !l.empty())
+		return true;
+	return l.grafted() < r.grafted();
+}
+
+bool sofadb::operator == (const graft_t &l, const graft_t &r)
+{
+	if (l.empty() && r.empty())
+		return true;
+	if (l.empty() != r.empty())
+		return false;
+	return l.grafted() == r.grafted();
+}
 
 json_value json_value::normalize_int() const
 {
@@ -13,9 +57,11 @@ json_value json_value::normalize_int() const
 		return *this;
 	else if (type()==big_int_d)
 	{
-		const BigInteger &bi=get_big_int();
-		if (bi < BigInteger(int64_t(INT64_MAX)))
-			return json_value(int64_t(bi.toLongLong()));
+		const bignum_t &num = get_big_int();
+		if ( (num>min_int_decimal || num==min_int_decimal) &&
+			 (num<max_int_decimal || num==max_int_decimal) )
+			 return json_value(int64_t(atoll(num.digits_.c_str())));
+
 		return *this;
 	} else
 		throw std::bad_cast();
@@ -51,6 +97,8 @@ bool sofadb::operator == (const json_value &l, const json_value &r)
 			return l.get_submap() == r.get_submap();
 		case sublist_d:
 			return l.get_sublist() == r.get_sublist();
+		case graft_d:
+			return l.get_graft() == r.get_graft();
 		default:
 			assert(false);
 	}
@@ -86,6 +134,8 @@ bool sofadb::operator < (const json_value &l, const json_value &r)
 			return l.get_submap() < r.get_submap();
 		case sublist_d:
 			return l.get_sublist() < r.get_sublist();
+		case graft_d:
+			return l.get_graft() < r.get_graft();
 		default:
 			assert(false);
 	}
@@ -174,9 +224,8 @@ static int json_number(void * ctx, const char * numberVal,
 		advance_list_with(proc, val);
 	} else
 	{
-		json_value v(stringToBigInteger(digits));
-		json_value v2(v.normalize_int());
-		advance_list_with(proc, std::move(v2));
+		json_value v(bignum_t(std::move(digits)));
+		advance_list_with(proc, v.normalize_int());
 	}
 	return 1;
 }
@@ -345,12 +394,11 @@ struct json_printer
 									 (const unsigned char*)(s.data()),
 									 s.size()));
 	}
-	void operator()(const BigInteger &b)
+	void operator()(const bignum_t &b)
 	{
-		jstring_t num=bigIntegerToString(b);
 		check_status(yajl_gen_number(ptr_.get(),
-									 num.data(),
-									 num.length()));
+									 b.digits_.data(),
+									 b.digits_.length()));
 	}
 	void operator()(const submap_t &map)
 	{
@@ -371,6 +419,13 @@ struct json_printer
 		for(auto i = lst.begin(), iend=lst.end(); i!=iend; ++i)
 			i->apply_visitor(*this);
 		check_status(yajl_gen_array_close(ptr_.get()));
+	}
+	void operator()(const graft_t &lst)
+	{
+		if (lst.empty())
+			check_status(yajl_gen_null(ptr_.get()));
+		else
+			lst.grafted().apply_visitor(*this);
 	}
 };
 

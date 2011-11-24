@@ -42,6 +42,31 @@ namespace sofadb {
 		revision_num_t(uint32_t num, const jstring_t &uniq);
 		revision_num_t(const jstring_t &);
 
+		revision_num_t(const revision_num_t &o) :
+			stringed_(o.stringed_), num_(o.num_), uniq_(o.uniq_)
+		{
+
+		}
+		revision_num_t(revision_num_t &&o) :
+			stringed_(std::move(o.stringed_)), num_(o.num_), uniq_(o.uniq_)
+		{
+		}
+		revision_num_t& operator = (revision_num_t &&o)
+		{
+			if (this == &o) return *this;
+			stringed_=std::move(o.stringed_);
+			num_=o.num_;
+			uniq_=o.uniq_;
+			return *this;
+		}
+		revision_num_t& operator = (const revision_num_t &o)
+		{
+			stringed_=o.stringed_;
+			num_=o.num_;
+			uniq_=o.uniq_;
+			return *this;
+		}
+
 		bool empty() const { return num_==0; }
 
 		const jstring_t& full_string() const { return stringed_; };
@@ -95,8 +120,6 @@ namespace sofadb {
 		//revision
 		revision_num_t rev_;
 	};
-	SOFADB_PUBLIC revision_num_t compute_revision(
-		const revision_num_t &prev, bool deleted, const jstring_t &body);
 
 	/**
 		Database should have the following metadata present.
@@ -138,7 +161,7 @@ namespace sofadb {
 		SOFADB_PUBLIC revision_t get(
 			const jstring_t &id, const maybe_string_t& rev=maybe_string_t());
 		SOFADB_PUBLIC revision_t put(
-			const jstring_t &id, const maybe_string_t& old_rev,
+			const jstring_t &id, const revision_num_t& old_rev,
 			const json_value &meta, const json_value &content, bool batched);
 		SOFADB_PUBLIC revision_t remove(
 			const jstring_t &id, const maybe_string_t& rev,
@@ -155,9 +178,9 @@ namespace sofadb {
 	private:
 		void check_closed();
 
-		void store(const leveldb::WriteOptions &wo,
-				   const revision_t &rev, const jstring_t &body);
 		jstring_t make_path(const jstring_t &id, const std::string *rev);
+		revision_num_t compute_revision(
+			const revision_num_t &prev, const jstring_t &body);
 	};
 
 }; //namespace sofadb

@@ -4,8 +4,6 @@
 #include "common.h"
 #include <map>
 #include <vector>
-#include "BigInteger.hh"
-#include <boost/interprocess/containers/string.hpp>
 
 #define MAX_ALIGNED_MEM 16
 #define SBO_LEN 32
@@ -16,6 +14,89 @@ namespace sofadb {
 	typedef std::map<jstring_t, json_value> submap_t;
 	typedef std::vector<json_value> sublist_t;
 
+	struct bignum_t
+	{
+		jstring_t digits_;
+
+		bignum_t() {}
+		bignum_t(std::string &&digits) : digits_(digits) {}
+		bignum_t(const std::string &digits) : digits_(digits) {}
+		bignum_t(const bignum_t &other) : digits_(other.digits_) {}
+		bignum_t(bignum_t &&other) : digits_(std::move(other.digits_)) {}
+		bignum_t& operator = (const bignum_t& other)
+		{
+			digits_ = other.digits_;
+			return *this;
+		}
+		bignum_t& operator = (bignum_t&& other)
+		{
+			if (this == &other) return *this;
+			digits_ = std::move(other.digits_);
+			return *this;
+		}
+	};
+
+	SOFADB_PUBLIC bool operator < (const bignum_t &l, const bignum_t &r);
+	inline bool operator > (const bignum_t &l, const bignum_t &r)
+	{
+		return r<l;
+	}
+	inline bool operator == (const bignum_t &l, const bignum_t &r)
+	{
+		return l.digits_ == r.digits_;
+	}
+	inline bool operator != (const bignum_t &l, const bignum_t &r)
+	{
+		return !(l == r);
+	}
+
+	struct graft_deleter_t
+	{
+		virtual void operator()(const json_value *val) = 0;
+	};
+
+	class graft_t
+	{
+		const json_value *graft_;
+		graft_deleter_t *deleter_;
+	public:
+		graft_t(const json_value *graft, graft_deleter_t *deleter=0) :
+			graft_(graft), deleter_(deleter) {}
+		~graft_t()
+		{
+			if (graft_ && deleter_)
+				(*deleter_)(graft_);
+		}
+
+		bool empty() const  { return !graft_; }
+		const json_value& grafted() const
+		{
+			assert(!empty());
+			return *graft_;
+		}
+
+		graft_t() : graft_(), deleter_() {}
+		graft_t(const graft_t &other) :
+			graft_(other.graft_), deleter_(other.deleter_) {}
+		graft_t& operator = (const graft_t& other)
+		{
+			graft_ = other.graft_;
+			deleter_ = other.deleter_;
+			return *this;
+		}
+	};
+
+	SOFADB_PUBLIC bool operator < (const graft_t &l, const graft_t &r);
+	inline bool operator > (const graft_t &l, const graft_t &r)
+	{
+		return r<l;
+	}
+	SOFADB_PUBLIC bool operator == (const graft_t &l, const graft_t &r);
+	inline bool operator != (const graft_t &l, const graft_t &r)
+	{
+		return !(l == r);
+	}
+
 	namespace detail {
 		union storage_t
 		{
@@ -23,10 +104,10 @@ namespace sofadb {
 			char storage1[sizeof(jstring_t)];
 			char storage2[sizeof(int64_t)];
 			char storage3[sizeof(double)];
-			char storage4[sizeof(BigInteger)];
-			char storage5[sizeof(double)];
-			char storage6[sizeof(submap_t)];
-			char storage7[sizeof(sublist_t)];
+			char storage4[sizeof(bignum_t)];
+			char storage5[sizeof(submap_t)];
+			char storage6[sizeof(sublist_t)];
+			char storage7[sizeof(graft_t)];
 		};
 	};
 
@@ -39,6 +120,7 @@ namespace sofadb {
 		big_int_d,
 		submap_d,
 		sublist_d,
+		graft_d,
 	};
 
 	class json_value
@@ -51,9 +133,10 @@ namespace sofadb {
 			jstring_t *_str_val;
 			int64_t *_int64_val;
 			double *_double_val;
-			BigInteger *_big_int_val;
+			bignum_t *_big_int_val;
 			submap_t *_submap_val;
 			sublist_t *_sublist_val;
+			graft_t *_grafted_val;
 		};
 #endif
 	public:
@@ -122,9 +205,10 @@ namespace sofadb {
 		STD_FUNCS(int64_t, int, int_d, explicit)
 		STD_FUNCS(double, double, double_d, )
 		STD_FUNCS(jstring_t, str, string_d, )
-		STD_FUNCS(BigInteger, big_int, big_int_d,)
+		STD_FUNCS(bignum_t, big_int, big_int_d,)
 		STD_FUNCS(submap_t, submap, submap_d,)
 		STD_FUNCS(sublist_t, sublist, sublist_d, )
+		STD_FUNCS(graft_t, graft, graft_d, )
 
 		template<class Visitor> auto apply_visitor(
 			Visitor &vis) -> decltype(vis());
@@ -225,13 +309,16 @@ namespace sofadb {
 				get_str().~jstring_t();
 				break;
 			case big_int_d:
-				get_big_int().~BigInteger();
+				get_big_int().~bignum_t();
 				break;
 			case submap_d:
 				get_submap().~submap_t();
 				break;
 			case sublist_d:
 				get_sublist().~sublist_t();
+				break;
+			case graft_d:
+				get_graft().~graft_t();
 				break;
 			default:
 				assert(false);
@@ -259,13 +346,16 @@ namespace sofadb {
 				make<jstring_t, string_d>();
 				break;
 			case big_int_d:
-				make<BigInteger, big_int_d>();
+				make<bignum_t, big_int_d>();
 				break;
 			case submap_d:
 				make<submap_t, submap_d>();
 				break;
 			case sublist_d:
 				make<sublist_t, sublist_d>();
+				break;
+			case graft_d:
+				make<graft_t, graft_d>();
 				break;
 			default:
 				assert(false);
@@ -292,13 +382,16 @@ namespace sofadb {
 			make<jstring_t, string_d>(other.get_str());
 			break;
 		case big_int_d:
-			make<BigInteger, big_int_d>(other.get_big_int());
+			make<bignum_t, big_int_d>(other.get_big_int());
 			break;
 		case submap_d:
 			make<submap_t, submap_d>(other.get_submap());
 			break;
 		case sublist_d:
 			make<sublist_t, sublist_d>(other.get_sublist());
+			break;
+		case graft_d:
+			make<graft_t, graft_d>(other.get_graft());
 			break;
 		default:
 			assert(false);
@@ -340,13 +433,16 @@ namespace sofadb {
 			make<jstring_t, string_d>(std::move(other.get_str()));
 			break;
 		case big_int_d:
-			make<BigInteger, big_int_d>(std::move(other.get_big_int()));
+			make<bignum_t, big_int_d>(std::move(other.get_big_int()));
 			break;
 		case submap_d:
 			make<submap_t, submap_d>(std::move(other.get_submap()));
 			break;
 		case sublist_d:
 			make<sublist_t, sublist_d>(std::move(other.get_sublist()));
+			break;
+		case graft_d:
+			make<graft_t, graft_d>(std::move(other.get_graft()));
 			break;
 		default:
 			assert(false);
@@ -395,6 +491,9 @@ namespace sofadb {
 		} else if (disc_==sublist_d)
 		{
 			return vis(get_sublist());
+		} else if (disc_==graft_d)
+		{
+			return vis(get_graft());
 		} else
 			assert(false);
 	}
@@ -426,6 +525,9 @@ namespace sofadb {
 		} else if (disc_==sublist_d)
 		{
 			return vis(get_sublist());
+		} else if (disc_==graft_d)
+		{
+			return vis(get_graft());
 		} else
 			assert(false);
 	}
