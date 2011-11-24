@@ -128,7 +128,7 @@ revision_t Database::put(const jstring_t &id, const revision_num_t& old_rev,
 	//Check if there is an old revision with this ID
 	std::string prev_rev;
 	std::string doc_rev_path=make_path(id, 0);
-	if (parent_->keystore_->Get(opts, doc_rev_path, &prev_rev).ok())
+	if (0)//parent_->keystore_->Get(opts, doc_rev_path, &prev_rev).ok())
 	{
 		//There's an existing document.
 		if (old_rev.empty() || prev_rev != old_rev.full_string())
@@ -150,18 +150,18 @@ revision_t Database::put(const jstring_t &id, const revision_num_t& old_rev,
 	serialized["atts"] = json_value(); //TODO: attachments
 	serialized["data"].as_graft() = &content;
 
-	jstring_t body=json_to_string(content);
+	jstring_t body=json_to_string(serialized);
 	rev.rev_ = compute_revision(rev.previous_rev_, body);
 	//TODO: attachments
 	assert(!rev.rev_.empty());
 
 	//Write tip pointer
-	parent_->check(
-		parent_->keystore_->Put(wo, doc_rev_path, rev.rev_.full_string()));
+//	parent_->check(
+//		parent_->keystore_->Put(wo, doc_rev_path, rev.rev_.full_string()));
 
 	std::string doc_data_path=make_path(rev.id_, &rev.rev_.full_string());
 	//Write the document
-	parent_->check(parent_->keystore_->Put(wo, doc_data_path, body));
+//	parent_->check(parent_->keystore_->Put(wo, doc_data_path, body));
 
 	VLOG_MACRO(1) << "Created document " << id << " in the database "
 			  << name_ << " revid=" << rev.rev_ << std::endl;

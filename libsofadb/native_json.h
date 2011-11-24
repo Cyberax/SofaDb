@@ -166,6 +166,10 @@ namespace sofadb {
 		{
 			return get_submap()[str];
 		}
+		void insert(jstring_t &&key, json_value &&val)
+		{
+			get_submap().insert(std::make_pair(std::move(key), std::move(val)));
+		}
 
 #define STD_FUNCS(type, type_postfix, disc, is_explicit) \
 		is_explicit json_value(const type &val) \

@@ -38,7 +38,7 @@ BOOST_AUTO_TEST_CASE(test_database_put)
 	std::string id = "Hello";
 
 	revision_num_t old;
-	for(int f=0;f<100000; ++f)
+	for(int f=0;f<100; ++f)
 	{
 		revision_t rev=ptr->put(id, old, json_value(submap_d), js, true);
 		old = std::move(rev.rev_);
