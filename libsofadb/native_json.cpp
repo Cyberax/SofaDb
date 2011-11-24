@@ -363,6 +363,7 @@ struct json_printer
 std::string sofadb::json_to_string(const json_value &val, bool pretty)
 {
 	printer_context ctx;
+	ctx.res_.reserve(128);
 	yajl_gen_config json_gen_config = {pretty?1:0, " "};
 	auto ptr=boost::shared_ptr<yajl_gen_t>(
 				yajl_gen_alloc2(&json_print, &json_gen_config,

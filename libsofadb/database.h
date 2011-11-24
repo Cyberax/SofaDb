@@ -32,13 +32,12 @@ namespace sofadb {
 		std::string rev_; //Document's MD5 hash or other ID
 
 		revision_info_t() : id_() {}
-		revision_info_t(uint32_t id, const std::string &rev) :
-			id_(id), rev_(rev)
-		{
-		}
+		revision_info_t(uint32_t id, const std::string &rev);
+		revision_info_t(const std::string &);
 
-		SOFADB_PUBLIC revision_info_t(const std::string &);
-		SOFADB_PUBLIC std::string to_string() const;
+		const std::string& to_string() const { return stringed_; };
+	private:
+		std::string stringed_;
 	};
 
 	inline std::ostream& operator << (std::ostream& str,
@@ -142,7 +141,7 @@ namespace sofadb {
 			const std::string &id, const maybe_string_t& rev=maybe_string_t());
 		SOFADB_PUBLIC revision_ptr put(
 			const std::string &id, const maybe_string_t& rev,
-			const json_value &json, bool batched);
+			const json_value &meta, json_value &&content, bool batched);
 		SOFADB_PUBLIC revision_ptr remove(
 			const std::string &id, const maybe_string_t& rev,
 			bool batched);

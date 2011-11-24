@@ -16,6 +16,7 @@ revision_info_t::revision_info_t(const std::string &rev)
 	{
 		id_ = 0;
 		rev_ = "";
+		stringed_ = "";
 	} else
 	{
 		size_t pos = rev.find('-');
@@ -29,24 +30,21 @@ revision_info_t::revision_info_t(const std::string &rev)
 
 		id_ = boost::lexical_cast<uint32_t>(rev_num);
 		rev_ = std::move(rev_id);
+		stringed_ = rev;
 	}
 }
 
-std::string revision_info_t::to_string() const
+revision_info_t::revision_info_t(uint32_t id, const std::string &rev) :
+	id_(id), rev_(rev)
 {
-	if (id_ == 0)
-		return "";
-
-	std::stringstream s;
-	s << id_ << '-' << rev_;
-	return s.str();
+	stringed_ = boost::lexical_cast<std::string>(id_)+'_'+rev_;
 }
 
 void revision_t::calculate_revision()
 {
 	//[Deleted, OldStart, OldRev, Body, Atts2]
-	std::string res=(deleted_?"-":"") + previous_rev_.to_string() +
-			json_to_string(json_body_);
+	std::string res=(deleted_?"-":"") + previous_rev_.to_string();
+//			json_to_string(json_body_);
 	rev_ = revision_info_t(previous_rev_.id_+1,
 						   calculate_hash(res.data(), res.size()));
 }
@@ -123,7 +121,8 @@ std::pair<json_value, json_value>
 }
 
 revision_ptr Database::put(const std::string &id, const maybe_string_t& old_rev,
-						   const json_value &json, bool batched)
+						   const json_value &meta, json_value &&content,
+						   bool batched)
 {
 	guard_t g(mutex_);
 	check_closed();
@@ -143,9 +142,7 @@ revision_ptr Database::put(const std::string &id, const maybe_string_t& old_rev,
 	else
 		rev->previous_rev_ = revision_info_t::empty_revision;
 
-	std::pair<json_value, json_value> pair =
-			sanitize_and_get_reserved_words(json);
-	rev->json_body_ = std::move(pair.first);
+	rev->json_body_ = std::move(content);
 	//TODO: attachments
 	rev->calculate_revision();
 	assert(rev->rev_);
@@ -153,19 +150,19 @@ revision_ptr Database::put(const std::string &id, const maybe_string_t& old_rev,
 	std::string doc_rev_path=make_path(id, maybe_string_t());
 
 	std::string prev_rev;
-	if (parent_->keystore_->Get(opts, doc_rev_path, &prev_rev).ok())
+	if (0) //parent_->keystore_->Get(opts, doc_rev_path, &prev_rev).ok())
 	{
 		//There's an existing document.
 		if (!old_rev || prev_rev != old_rev.get())
 			return revision_ptr(); //Conflict
 	}
 
-	//Totaly new document! Calculate its revision
+	//Update or create a document! Calculate its revision
 	std::string cur_rev(rev->rev_.get().to_string());
 	VLOG_MACRO(1) << "Creating document " << id << " in the database "
 			  << name_ << " revid=" << rev->rev_.get() << std::endl;
 
-	parent_->check(parent_->keystore_->Put(wo, doc_rev_path, cur_rev));
+//	parent_->check(parent_->keystore_->Put(wo, doc_rev_path, cur_rev));
 
 	//Store the document itself
 	store(wo, rev);
@@ -189,13 +186,14 @@ void Database::store(const WriteOptions &wo, revision_ptr ptr)
 	serialized["deleted"].as_bool() =ptr->deleted_;
 	serialized["prev_revid"].as_str() = ptr->previous_rev_.to_string();
 	serialized["atts"] = json_value(); //TODO: attachments
-	serialized["data"] = ptr->json_body_;
+	serialized["data"] = json_to_string(ptr->json_body_);
 
 	std::string buf=json_to_string(serialized, false);
-	Slice sl(buf);
+//	parent_->check(
+//		parent_->keystore_->Put(wo, doc_data_path, buf));
 
-	parent_->check(
-		parent_->keystore_->Put(wo, doc_data_path, sl));
+//	ptr->json_body_ = std::move(serialized["data"]);
+
 	VLOG_MACRO(1) << "Created document " << ptr->id_ << " in the database "
 				<< name_ << ", size=" << buf.size();
 }
