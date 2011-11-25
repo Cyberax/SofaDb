@@ -16,9 +16,9 @@ const revision_num_t revision_num_t::empty_revision;
 revision_num_t::revision_num_t(uint32_t num, const jstring_t &uniq) :
 	num_(num), uniq_(uniq)
 {
-	char *buf = (char*)alloca(42 + uniq.size());
-	sprintf(buf, "%d-%s", num, uniq.c_str());
-	stringed_ = buf;
+	stringed_.append(int_to_string(num));
+	stringed_.push_back('-');
+	stringed_.append(uniq);
 }
 
 revision_num_t::revision_num_t(const jstring_t &rev)
@@ -42,7 +42,7 @@ revision_num_t::revision_num_t(const jstring_t &rev)
 			err(result_code_t::sWrongRevision)
 					<< "Invalid revision num: " << rev;
 
-		num_ = boost::lexical_cast<uint32_t>(rev_num);
+		num_ = atoi(rev_num.c_str());//boost::lexical_cast<uint32_t>(rev_num);
 		uniq_ = std::move(rev_id);
 		stringed_ = rev;
 	}
@@ -132,8 +132,7 @@ revision_t Database::put(const jstring_t &id, const revision_num_t& old_rev,
 	{
 		//There's an existing document.
 		if (old_rev.empty() || prev_rev != old_rev.full_string())
-			return rev;
-			//return revision_ptr(); //Conflict
+			return rev; //Conflict!
 	}
 	//Update or create a document!
 
@@ -171,11 +170,17 @@ revision_t Database::put(const jstring_t &id, const revision_num_t& old_rev,
 
 jstring_t Database::make_path(const jstring_t &id, const std::string *rev)
 {
-	char *buf = (char*)alloca(name_.size() + id.size()
-							  + (rev?rev->size():0) + 42);
-	sprintf(buf, SD_DATA_DB "/%s" DB_SEPARATOR "%s" REV_SEPARATOR "%s",
-			name_.c_str(), id.c_str(), rev ? rev->c_str() : "tip");
-	return buf;
+	//Optimized, so it's ugly.
+	jstring_t res;
+	res.reserve(name_.size() + id.size() + 16 + (rev?rev->size():0));
+	res.append(SD_DATA_DB"/", sizeof(SD_DATA_DB"/"));
+	res.append(name_).append(DB_SEPARATOR, sizeof(DB_SEPARATOR));
+	res.append(id);
+	if (!rev)
+		res.append(REV_SEPARATOR"tip", sizeof(REV_SEPARATOR"tip"));
+	else
+		res.append(REV_SEPARATOR, sizeof(REV_SEPARATOR)).append(*rev);
+	return res;
 }
 
 

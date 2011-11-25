@@ -4,10 +4,25 @@
 #include <boost/lexical_cast.hpp>
 #include "errors.h"
 
+#define BOOST_KARMA_NUMERICS_LOOP_UNROLL 6
+#include <boost/spirit/include/karma.hpp>
+using namespace boost::spirit;
+using boost::spirit::karma::int_;
+using boost::spirit::karma::lit;
+
 using namespace sofadb;
 static const bignum_t max_int_decimal("9223372036854775807"); //2^63
 static const bignum_t min_int_decimal("-9223372036854775808"); //-(2^63)-1
 const json_value json_value::empty_val;
+
+std::string sofadb::int_to_string(int64_t in)
+{
+	char buffer[64];
+	char *ptr = buffer;
+	karma::generate(ptr, int_, in);
+	*ptr = '\0';
+	return std::string(buffer, ptr-buffer);
+}
 
 bool sofadb::operator < (const bignum_t &l, const bignum_t &r)
 {
@@ -363,7 +378,7 @@ struct json_printer
 	}
 	void operator()(int64_t i)
 	{
-		jstring_t stringy=boost::lexical_cast<jstring_t>(i);
+		jstring_t stringy=int_to_string(i);
 		check_status(yajl_gen_number(ptr_.get(), stringy.data(),
 									 stringy.size()));
 	}

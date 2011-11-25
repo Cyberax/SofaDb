@@ -26,8 +26,6 @@
   #endif
 #endif
 
-#define BOOST_MPL_CFG_NO_PREPROCESSED_HEADERS
-#define BOOST_MPL_LIMIT_LIST_SIZE 10
 #include <boost/shared_ptr.hpp>
 #include <string>
 #include <vector>
@@ -44,18 +42,18 @@ typedef std::lock_guard<std::recursive_mutex> guard_t;
 typedef std::string jstring_t;
 
 #ifndef NDEBUG
-#include <execinfo.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
+	#include <execinfo.h>
+	#include <stdio.h>
+	#include <stdlib.h>
+	#include <unistd.h>
 
-inline void backtrace_it(void)
-{
-	void *buffer[1000];
-	int nptrs = backtrace(buffer, 1000);
-	printf("backtrace() returned %d addresses\n", nptrs);
-	backtrace_symbols_fd(buffer, nptrs, STDOUT_FILENO);
-}
+	inline void backtrace_it(void)
+	{
+		void *buffer[1000];
+		int nptrs = backtrace(buffer, 1000);
+		printf("backtrace() returned %d addresses\n", nptrs);
+		backtrace_symbols_fd(buffer, nptrs, STDOUT_FILENO);
+	}
 #endif
 
 #endif // COMMON_H
