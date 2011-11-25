@@ -1,6 +1,7 @@
 #include "engine.h"
 #include "database.h"
-#include "leveldb/db.h"
+#include <leveldb/db.h>
+#include <leveldb/write_batch.h>
 #include <openssl/md5.h>
 #include <time.h>
 #include <boost/lexical_cast.hpp>
@@ -110,16 +111,30 @@ std::pair<json_value, json_value>
 	return std::make_pair(std::move(sanitized), std::move(special));
 }
 
+leveldb::batch_ptr_t Database::make_batch()
+{
+	return batch_ptr_t(new WriteBatch());
+}
+
+void Database::commit_batch(leveldb::batch_ptr_t batch, bool sync)
+{
+	WriteOptions wo;
+	wo.sync = sync;
+	parent_->check(parent_->keystore_->Write(wo, batch.get()));
+}
+
 revision_t Database::put(const jstring_t &id, const revision_num_t& old_rev,
 						const json_value &meta, const json_value &content,
-						bool batched)
+						bool sync_commit, leveldb::batch_ptr_t batch)
 {
 	guard_t g(mutex_);
 	check_closed();
 
 	ReadOptions opts;
 	WriteOptions wo;
-	wo.sync = !batched;
+	wo.sync = sync_commit;
+	if (sync_commit && batch)
+		err(result_code_t::sError) << "Attempting to do commits during batch";
 
 	//Ok. That gets interesting!
 	//Let's roll!
@@ -128,6 +143,7 @@ revision_t Database::put(const jstring_t &id, const revision_num_t& old_rev,
 	//Check if there is an old revision with this ID
 	std::string prev_rev;
 	std::string doc_rev_path=make_path(id, 0);
+
 	if (parent_->keystore_->Get(opts, doc_rev_path, &prev_rev).ok())
 	{
 		//There's an existing document.
@@ -155,12 +171,18 @@ revision_t Database::put(const jstring_t &id, const revision_num_t& old_rev,
 	assert(!rev.rev_.empty());
 
 	//Write tip pointer
-	parent_->check(
-		parent_->keystore_->Put(wo, doc_rev_path, rev.rev_.full_string()));
+	if (batch)
+		batch->Put(doc_rev_path, rev.rev_.full_string());
+	else
+		parent_->check(
+			parent_->keystore_->Put(wo, doc_rev_path, rev.rev_.full_string()));
 
 	std::string doc_data_path=make_path(rev.id_, &rev.rev_.full_string());
 	//Write the document
-	parent_->check(parent_->keystore_->Put(wo, doc_data_path, body));
+	if (batch)
+		batch->Put(doc_data_path, body);
+	else
+		parent_->check(parent_->keystore_->Put(wo, doc_data_path, body));
 
 	VLOG_MACRO(1) << "Created document " << id << " in the database "
 			  << name_ << " revid=" << rev.rev_ << std::endl;

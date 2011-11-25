@@ -14,7 +14,10 @@ namespace leveldb {
 	class DB;
 	class Status;
 	class WriteOptions;
+	class WriteBatch;
 	typedef boost::shared_ptr<DB> db_ptr_t;
+	class WriteBatch;
+	typedef boost::shared_ptr<WriteBatch> batch_ptr_t;
 };
 
 namespace sofadb {
@@ -167,17 +170,24 @@ namespace sofadb {
 			return other.json_meta_ == json_meta_;
 		}
 
+		SOFADB_PUBLIC leveldb::batch_ptr_t make_batch();
+		SOFADB_PUBLIC void commit_batch(leveldb::batch_ptr_t batch, bool sync);
+
 		SOFADB_PUBLIC res_t get(const jstring_t &id,
 			const revision_num_t& = revision_num_t::empty_revision);
 		SOFADB_PUBLIC revision_t put(
 			const jstring_t &id, const revision_num_t& old_rev,
-			const json_value &meta, const json_value &content, bool batched);
+			const json_value &meta, const json_value &content,
+			bool sync_commit,
+			leveldb::batch_ptr_t batch = leveldb::batch_ptr_t());
+
 		SOFADB_PUBLIC revision_t remove(
-			const jstring_t &id, const revision_num_t& rev, bool batched);
+			const jstring_t &id, const revision_num_t& rev,
+			leveldb::batch_ptr_t batch = leveldb::batch_ptr_t());
 		SOFADB_PUBLIC revision_t copy(
 			const jstring_t &id, const revision_num_t &rev,
 			const jstring_t &dest_id, const revision_num_t &dest_rev,
-			bool batched);
+			leveldb::batch_ptr_t batch=leveldb::batch_ptr_t());
 
 		std::pair<json_value, json_value>
 			sanitize_and_get_reserved_words(const json_value &tp);
