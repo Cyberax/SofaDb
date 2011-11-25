@@ -77,8 +77,8 @@ template<template<class T> class Operator> bool do_operation(
 	if (l.type()==big_int_d && r.type()==int_d ||
 		r.type()==big_int_d && l.type()==int_d)
 	{
-		json_value l1=l.normalize_int();
-		json_value l2=r.normalize_int();
+		const json_value &l1=l.normalize_int();
+		const json_value &l2=r.normalize_int();
 		if (l1.type()!=l2.type())
 			return Operator<json_disc>()(l1.type(), l2.type());
 		return Operator<json_value>()(l1.get_int(), l2.get_int());

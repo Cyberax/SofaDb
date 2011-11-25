@@ -65,17 +65,17 @@ BOOST_AUTO_TEST_CASE(test_database_update)
 	json_value js2=string_to_json("{\"Hello the second\" : \"world\"}");
 
 	revision_t rev=ptr->put("Hello", revision_num_t(),
-							  json_value(submap_d), json_value(js), true);
+							  json_value(submap_d), js, true);
 
 	revision_t rev2=ptr->put("Hello", revision_num_t(),
-							   json_value(submap_d), json_value(js2), true);
+							   json_value(submap_d), js2, true);
 	BOOST_REQUIRE(rev2.empty());
 
 	revision_t rev3=ptr->put("Hello", revision_num_t("2-Nope"),
-							   json_value(submap_d), json_value(js2), true);
+							   json_value(submap_d), js2, true);
 	BOOST_REQUIRE(rev3.empty());
 
 	revision_t rev4=ptr->put("Hello", rev.rev_,
-							   json_value(submap_d), json_value(js2), true);
+							   json_value(submap_d), js2, true);
 	BOOST_REQUIRE(!rev4.empty());
 }

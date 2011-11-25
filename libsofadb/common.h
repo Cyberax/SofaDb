@@ -43,4 +43,19 @@ typedef std::lock_guard<std::recursive_mutex> guard_t;
 //typedef __gnu_cxx::__vstring jstring_t;
 typedef std::string jstring_t;
 
+#ifndef NDEBUG
+#include <execinfo.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+inline void backtrace_it(void)
+{
+	void *buffer[1000];
+	int nptrs = backtrace(buffer, 1000);
+	printf("backtrace() returned %d addresses\n", nptrs);
+	backtrace_symbols_fd(buffer, nptrs, STDOUT_FILENO);
+}
+#endif
+
 #endif // COMMON_H

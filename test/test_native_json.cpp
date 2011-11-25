@@ -21,6 +21,9 @@ BOOST_AUTO_TEST_CASE(test_grafts)
 
 	json_value etalon=string_to_json("{\"hello\" : \"world\"}");
 	BOOST_REQUIRE_EQUAL(val, etalon);
+
+	json_value copy = val;
+	BOOST_REQUIRE_EQUAL(val, copy);
 }
 
 BOOST_AUTO_TEST_CASE(test_big_ints)
@@ -56,6 +59,7 @@ static json_value roundtrip(const jstring_t &js)
 {
 	json_value res=string_to_json(js);
 	json_value res2=string_to_json(json_to_string(res));
+
 	BOOST_REQUIRE_EQUAL(res, res2);
 	return res2;
 }

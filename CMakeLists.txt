@@ -13,11 +13,11 @@ IF(NOT CMAKE_BUILD_TYPE)
   SET(CMAKE_BUILD_TYPE Debug CACHE STRING
 	  "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel."
 	  FORCE)
+	SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-inline -O0")
 ENDIF(NOT CMAKE_BUILD_TYPE)
 
 # Define DEBUG on debug builds
 set_directory_properties(PROPERTIES COMPILE_DEFINITIONS_DEBUG DEBUG=1)
-
 
 IF(WIN32)
 	ADD_DEFINITIONS(-DUNICODE -D_UNICODE -D_DEBUG)

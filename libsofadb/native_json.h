@@ -409,6 +409,10 @@ namespace sofadb {
 	inline json_value::json_value(const json_value& other)
 	{
 		assign(other);
+//		if (other.type()!=nil_d && other.type()!=int_d)
+//		{
+//			backtrace_it();
+//		}
 	}
 
 	inline json_value& json_value::operator = (const json_value& other)
