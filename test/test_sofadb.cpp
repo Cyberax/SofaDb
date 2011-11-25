@@ -56,26 +56,26 @@ BOOST_AUTO_TEST_CASE(test_database_put)
 
 BOOST_AUTO_TEST_CASE(test_database_update)
 {
-//	std::string templ("/tmp/sofa_XXXXXX");
-//	mkdtemp(&templ[0]);
-//	DbEngine engine(templ, true);
+	std::string templ("/tmp/sofa_XXXXXX");
+	mkdtemp(&templ[0]);
+	DbEngine engine(templ, true);
 
-//	database_ptr ptr=engine.create_a_database("test");
-//	json_value js=string_to_json("{\"Hello\" : \"world\"}");
-//	json_value js2=string_to_json("{\"Hello the second\" : \"world\"}");
+	database_ptr ptr=engine.create_a_database("test");
+	json_value js=string_to_json("{\"Hello\" : \"world\"}");
+	json_value js2=string_to_json("{\"Hello the second\" : \"world\"}");
 
-//	revision_ptr rev=ptr->put("Hello", maybe_string_t(),
-//							  json_value(submap_d), json_value(js), true);
+	revision_t rev=ptr->put("Hello", revision_num_t(),
+							  json_value(submap_d), json_value(js), true);
 
-//	revision_ptr rev2=ptr->put("Hello", maybe_string_t(),
-//							   json_value(submap_d), json_value(js2), true);
-//	BOOST_REQUIRE(!rev2);
+	revision_t rev2=ptr->put("Hello", revision_num_t(),
+							   json_value(submap_d), json_value(js2), true);
+	BOOST_REQUIRE(rev2.empty());
 
-//	revision_ptr rev3=ptr->put("Hello", maybe_string_t("2-Nope"),
-//							   json_value(submap_d), json_value(js2), true);
-//	BOOST_REQUIRE(!rev3);
+	revision_t rev3=ptr->put("Hello", revision_num_t("2-Nope"),
+							   json_value(submap_d), json_value(js2), true);
+	BOOST_REQUIRE(rev3.empty());
 
-//	revision_ptr rev4=ptr->put("Hello", rev->get_rev(),
-//							   json_value(submap_d), json_value(js2), true);
-//	BOOST_REQUIRE(rev4);
+	revision_t rev4=ptr->put("Hello", rev.rev_,
+							   json_value(submap_d), json_value(js2), true);
+	BOOST_REQUIRE(!rev4.empty());
 }
