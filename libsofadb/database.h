@@ -2,45 +2,90 @@
 #define SOFA_DATABASE_H
 
 #include "common.h"
-#include "erlang_compat.h"
+#include "native_json.h"
 #include <boost/optional.hpp>
+
+#define SD_SYSTEM_DB "_sys"
+#define SD_DATA_DB "_data"
+#define DB_SEPARATOR "!"
+#define REV_SEPARATOR "@"
 
 namespace leveldb {
 	class DB;
 	class Status;
 	class WriteOptions;
+	class WriteBatch;
 	typedef boost::shared_ptr<DB> db_ptr_t;
+	class WriteBatch;
+	typedef boost::shared_ptr<WriteBatch> batch_ptr_t;
 };
 
 namespace sofadb {
 
 	class DbEngine;
-	typedef boost::optional<std::string> maybe_string_t;
+	typedef boost::optional<jstring_t> maybe_string_t;
 
 	class inline_attachment_t
 	{
-		std::string name_, content_type_;
+		jstring_t name_, content_type_;
 		uint8_t md5_[16];
 	};
 	typedef std::vector<inline_attachment_t> attachment_vector_t;
 
-	struct revision_info_t
+	class revision_num_t
 	{
-		SOFADB_PUBLIC static const revision_info_t empty_revision;
+		jstring_t stringed_;
+		uint32_t num_; //This is a revision number
+		jstring_t uniq_; //Document's MD5 hash or other unique ID
 
-		uint32_t id_; //This is a revision number
-		std::string rev_; //Document's MD5 hash or other ID
+	public:
+		SOFADB_PUBLIC static const revision_num_t empty_revision;
 
-		revision_info_t() : id_() {}
-		SOFADB_PUBLIC revision_info_t(const std::string &);
-		SOFADB_PUBLIC std::string to_string() const;
+		revision_num_t() : num_() {}
+		SOFADB_PUBLIC revision_num_t(uint32_t num, const jstring_t &uniq);
+		SOFADB_PUBLIC revision_num_t(const jstring_t &);
+
+		revision_num_t(const revision_num_t &o) :
+			stringed_(o.stringed_), num_(o.num_), uniq_(o.uniq_)
+		{
+
+		}
+		revision_num_t(revision_num_t &&o) :
+			stringed_(std::move(o.stringed_)), num_(o.num_), uniq_(o.uniq_)
+		{
+		}
+		revision_num_t& operator = (revision_num_t &&o)
+		{
+			if (this == &o) return *this;
+			stringed_=std::move(o.stringed_);
+			num_=o.num_;
+			uniq_=o.uniq_;
+			return *this;
+		}
+		revision_num_t& operator = (const revision_num_t &o)
+		{
+			stringed_=o.stringed_;
+			num_=o.num_;
+			uniq_=o.uniq_;
+			return *this;
+		}
+
+		bool empty() const { return num_==0; }
+
+		const jstring_t& full_string() const { return stringed_; };
+		uint32_t num() const { return num_; }
+		const jstring_t& uniq() const { return uniq_; }
 	};
 
-	inline std::ostream& operator << (std::ostream& str,
-									  const revision_info_t &r)
+	inline bool operator == (const revision_num_t &l, const revision_num_t &r)
 	{
-		str << r.to_string();
-		return str;
+		return l.num() == r.num() && l.uniq() == r.uniq();
+	}
+
+	inline std::ostream& operator << (std::ostream& str,
+									  const revision_num_t &r)
+	{
+		return str << r.full_string();
 	}
 
 	/**
@@ -73,28 +118,18 @@ namespace sofadb {
 	  */
 	struct revision_t
 	{
-		std::string id_; //The immutable document ID
-
+		jstring_t id_; //The immutable document ID
 		bool deleted_;
-		//Revision in the format num-MD5 where MD5 is a hash of the document's
-		//contents.
-		revision_info_t previous_rev_;
-		erlang::erl_type_t json_body_;
+
+		revision_num_t previous_rev_;
 		attachment_vector_t atts_;
 
 		//Cached revision info, can be computed based on the previous
 		//revision
-		boost::optional<revision_info_t> rev_;
-		SOFADB_PUBLIC void calculate_revision();
+		revision_num_t rev_;
 
-		maybe_string_t get_rev() const
-		{
-			if (!rev_)
-				return maybe_string_t();
-			return maybe_string_t(rev_.get().to_string());
-		}
+		bool empty() const { return id_.empty(); }
 	};
-	typedef boost::shared_ptr<revision_t> revision_ptr;
 
 	/**
 		Database should have the following metadata present.
@@ -118,46 +153,51 @@ namespace sofadb {
 		std::recursive_mutex mutex_;
 
 		bool closed_;
-		erlang
-		::erl_type_t json_meta_;
-		std::string name_;
+		json_value json_meta_;
+		jstring_t name_;
 
-		Database(DbEngine *parent, const std::string &name);
-		Database(DbEngine *parent, const erlang::erl_type_t &meta);
+		Database(DbEngine *parent, const jstring_t &name);
+		Database(DbEngine *parent, json_value &&meta);
 
 		friend class DbEngine;
 	public:
-		const erlang::erl_type_t& get_meta() const {return json_meta_;}
+		typedef std::pair<revision_t, json_value> res_t;
+
+		const json_value& get_meta() const {return json_meta_;}
 
 		bool operator == (const Database &other) const
 		{
-			return deep_eq(other.json_meta_, json_meta_);
+			return other.json_meta_ == json_meta_;
 		}
 
-		SOFADB_PUBLIC revision_ptr get(
-			const std::string &id, const maybe_string_t& rev=maybe_string_t());
-		SOFADB_PUBLIC revision_ptr put(
-			const std::string &id, const maybe_string_t& rev,
-			const erlang::erl_type_t &json, bool batched);
-		SOFADB_PUBLIC revision_ptr remove(
-			const std::string &id, const maybe_string_t& rev,
-			bool batched);
-		SOFADB_PUBLIC revision_ptr copy(
-			const std::string &id,
-			const maybe_string_t& rev,
-			const std::string &dest_id,
-			const maybe_string_t& dest_rev,
-			bool batched);
+		SOFADB_PUBLIC leveldb::batch_ptr_t make_batch();
+		SOFADB_PUBLIC void commit_batch(leveldb::batch_ptr_t batch, bool sync);
 
+		SOFADB_PUBLIC res_t get(const jstring_t &id,
+			const revision_num_t& = revision_num_t::empty_revision);
+		SOFADB_PUBLIC revision_t put(
+			const jstring_t &id, const revision_num_t& old_rev,
+			const json_value &meta, const json_value &content,
+			bool sync_commit,
+			leveldb::batch_ptr_t batch = leveldb::batch_ptr_t());
+
+		SOFADB_PUBLIC revision_t remove(
+			const jstring_t &id, const revision_num_t& rev,
+			leveldb::batch_ptr_t batch = leveldb::batch_ptr_t());
+		SOFADB_PUBLIC revision_t copy(
+			const jstring_t &id, const revision_num_t &rev,
+			const jstring_t &dest_id, const revision_num_t &dest_rev,
+			leveldb::batch_ptr_t batch=leveldb::batch_ptr_t());
+
+		std::pair<json_value, json_value>
+			sanitize_and_get_reserved_words(const json_value &tp);
 	private:
 		void check_closed();
-		std::pair<erlang::erl_type_t, erlang::erl_type_t>
-			sanitize_and_get_reserved_words(const erlang::erl_type_t &tp);
 
-		void store(const leveldb::WriteOptions &wo, revision_ptr ptr);
-		std::string make_path(const std::string &id, maybe_string_t rev);
+		jstring_t make_path(const jstring_t &id, const std::string *rev);
+		revision_num_t compute_revision(
+			const revision_num_t &prev, const jstring_t &body);
 	};
-	typedef boost::shared_ptr<Database> database_ptr;
 
 }; //namespace sofadb
 

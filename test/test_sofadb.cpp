@@ -1,14 +1,14 @@
 #include <boost/test/unit_test.hpp>
-#include "erlang_json.h"
 #include <boost/lexical_cast.hpp>
+#include <boost/tuple/tuple.hpp>
 
 #include "engine.h"
+#include "database.h"
 using namespace sofadb;
-using namespace erlang;
 
 BOOST_AUTO_TEST_CASE(test_database_creation)
 {
-	std::string templ("/tmp/sofa_XXXXXX");
+	jstring_t templ("/tmp/sofa_XXXXXX");
 	mkdtemp(&templ[0]);
 
 	database_ptr info;
@@ -28,27 +28,33 @@ BOOST_AUTO_TEST_CASE(test_database_creation)
 
 BOOST_AUTO_TEST_CASE(test_database_put)
 {
-	std::string templ("/tmp/sofa_XXXXXX");
+	jstring_t templ("/tmp/sofa_XXXXXX");
 	mkdtemp(&templ[0]);
 	DbEngine engine(templ, true);
 
 	database_ptr ptr=engine.create_a_database("test");
 
-	erl_type_t js=parse_json("{\"Hello\" : \"world\"}");
-//	for(int f=0;f< 100000; ++f)
-//	{
-//		std::string id ="Hello" + boost::lexical_cast<std::string>(f);
-//		revision_ptr rev=ptr->put(id, maybe_string_t(), js, true);
-//	}
+	json_value js=string_to_json("{\"Hello\" : \"world\"}");
 
-	revision_ptr rev=ptr->put("Hello", maybe_string_t(), js, true);
-	BOOST_REQUIRE(rev->rev_.get().rev_ == "2028f9ff8e5094cfc9e4eb8bcca19e83");
+	std::string id = "Hello";
 
-	revision_ptr rev2=ptr->get("Hello");
-	revision_ptr rev3=ptr->get("Hello", rev->rev_.get().to_string());
+	revision_num_t old;
+	for(int f=0;f<100; ++f)
+	{
+		leveldb::batch_ptr_t batch = ptr->make_batch();
+		revision_t rev=ptr->put(id, old, json_value(submap_d), js,
+								false, batch);
+		old = std::move(rev.rev_);
+		ptr->commit_batch(batch, false);
+	}
 
-	BOOST_REQUIRE(deep_eq(rev->json_body_, rev2->json_body_));
-	BOOST_REQUIRE(deep_eq(rev->json_body_, rev3->json_body_));
+	Database::res_t rev2=ptr->get(id);
+	Database::res_t rev3=ptr->get(id, old);
+	BOOST_REQUIRE_EQUAL(rev2.first.rev_, rev3.first.rev_);
+	BOOST_REQUIRE_EQUAL(rev2.second, rev3.second);
+
+	BOOST_REQUIRE_EQUAL(js, rev2.second);
+	BOOST_REQUIRE_EQUAL(js, rev3.second);
 }
 
 BOOST_AUTO_TEST_CASE(test_database_update)
@@ -58,17 +64,21 @@ BOOST_AUTO_TEST_CASE(test_database_update)
 	DbEngine engine(templ, true);
 
 	database_ptr ptr=engine.create_a_database("test");
-	erl_type_t js=parse_json("{\"Hello\" : \"world\"}");
-	erl_type_t js2=parse_json("{\"Hello the second\" : \"world\"}");
+	json_value js=string_to_json("{\"Hello\" : \"world\"}");
+	json_value js2=string_to_json("{\"Hello the second\" : \"world\"}");
 
-	revision_ptr rev=ptr->put("Hello", maybe_string_t(), js, true);
+	revision_t rev=ptr->put("Hello", revision_num_t(),
+							  json_value(submap_d), js, false);
 
-	revision_ptr rev2=ptr->put("Hello", maybe_string_t(), js2, true);
-	BOOST_REQUIRE(!rev2);
+	revision_t rev2=ptr->put("Hello", revision_num_t(),
+							   json_value(submap_d), js2, false);
+	BOOST_REQUIRE(rev2.empty());
 
-	revision_ptr rev3=ptr->put("Hello", maybe_string_t("2-Nope"), js2, true);
-	BOOST_REQUIRE(!rev3);
+	revision_t rev3=ptr->put("Hello", revision_num_t("2-Nope"),
+							   json_value(submap_d), js2, false);
+	BOOST_REQUIRE(rev3.empty());
 
-	revision_ptr rev4=ptr->put("Hello", rev->get_rev(), js2, true);
-	BOOST_REQUIRE(rev4);
+	revision_t rev4=ptr->put("Hello", rev.rev_,
+							   json_value(submap_d), js2, false);
+	BOOST_REQUIRE(!rev4.empty());
 }

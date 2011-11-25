@@ -2,19 +2,16 @@ PROJECT(test_sofadb)
 
 FILE(GLOB test_sofadb_SRCS
 	test_main.cpp
-	test_erlang.cpp
-	test_erlang_json.cpp
+	test_native_json.cpp
 	test_sofadb.cpp
 	test_utils.cpp
 )
 
 FILE(GLOB test_sofadb_INCLUDES
-	test_erlang_common.h
 )
 
 INCLUDE_DIRECTORIES(.)
 INCLUDE_DIRECTORIES(${libsofadb_SOURCE_DIR})
-INCLUDE_DIRECTORIES(${bigint_SOURCE_DIR})
 INCLUDE_DIRECTORIES(${BOOST_INCLUDE_DIR})
 
 ADD_EXECUTABLE(test_sofadb ${test_sofadb_SRCS} ${test_sofadb_INCLUDES})

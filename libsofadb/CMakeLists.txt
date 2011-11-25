@@ -4,9 +4,8 @@ FILE(GLOB libsofadb_SRCS
 	conflict.cpp
 	database.cpp
 	engine.cpp
-	erlang_compat.cpp
-	erlang_json.cpp
 	errors.cpp
+	native_json.cpp
 )
 
 FILE(GLOB libsofadb_INCLUDES
@@ -15,9 +14,8 @@ FILE(GLOB libsofadb_INCLUDES
 	conflict.h
 	database.h
 	engine.h
-	erlang_compat.h
-	erlang_json.h
 	errors.h
+	native_json.h
 	scope_guard.h
 )
 
@@ -35,7 +33,7 @@ TARGET_LINK_LIBRARIES(libsofadb crypto yajl glog)
 #	json_spirit)# bigint)
 
 TARGET_LINK_LIBRARIES(libsofadb -Wl,-whole-archive
-	${LevelDb_LIBRARY} bigint -Wl,-no-whole-archive)
+	${LevelDb_LIBRARY} -Wl,-no-whole-archive)
 
 # We must not re-export static libraries
 SET_TARGET_PROPERTIES(libsofadb PROPERTIES LINK_INTERFACE_LIBRARIES "pthread")

@@ -1,39 +1,17 @@
 #include "engine.h"
+#include "database.h"
+
 #include "leveldb/db.h"
-#include "erlang_json.h"
 #include <openssl/md5.h>
 #include <time.h>
 #include <boost/lexical_cast.hpp>
-#include "erlang_compat.h"
 #include "errors.h"
 
 #include <iostream>
 using namespace sofadb;
 using namespace leveldb;
-using namespace erlang;
 
-const std::string DbEngine::SYSTEM_DB("_sys");
-const std::string DbEngine::DATA_DB("_data");
-const revision_info_t revision_info_t::empty_revision;
-
-std::string sofadb::calculate_hash(const std::vector<unsigned char> &arr)
-{
-	static const char alphabet[17]="0123456789abcdef";
-
-	unsigned char res[MD5_DIGEST_LENGTH+1]={0};
-	MD5(arr.data(), arr.size(), res);
-
-	std::string str_res;
-	str_res.reserve(MD5_DIGEST_LENGTH*2+1);
-	for(int f=0;f<MD5_DIGEST_LENGTH;++f)
-	{
-		str_res.push_back(alphabet[res[f]/16]);
-		str_res.push_back(alphabet[res[f]%16]);
-	}
-	return str_res;
-}
-
-DbEngine::DbEngine(const std::string &filename, bool temporary)
+DbEngine::DbEngine(const jstring_t &filename, bool temporary)
 {
 	this->filename_ = filename;
 	this->temporary_ = temporary;
@@ -45,8 +23,7 @@ DbEngine::DbEngine(const std::string &filename, bool temporary)
 	opts.compression=kSnappyCompression;
 
 	DB *db;
-	leveldb::Status status = leveldb::DB::Open(opts,
-											   filename.c_str(), &db);
+	leveldb::Status status = leveldb::DB::Open(opts, filename, &db);
 	this->keystore_.reset(db);
 }
 
@@ -62,4 +39,36 @@ void DbEngine::check(const leveldb::Status &status)
 	if (status.ok())
 		return;
 	err(result_code_t::sError) << status.ToString();
+}
+
+database_ptr DbEngine::create_a_database(const jstring_t &name)
+{
+	guard_t g(mutex_);
+
+	auto pos=databases_.find(name);
+	if (pos!=databases_.end())
+		return pos->second;
+
+	ReadOptions opts;
+	jstring_t db_info=jstring_t(SD_SYSTEM_DB)+"/"+name+DB_SEPARATOR+"dbinfo";
+
+	std::string out;
+	if (keystore_->Get(opts, db_info, &out).ok())
+	{
+		database_ptr res(new Database(this, string_to_json(out)));
+		databases_[name]=res;
+		return res;
+	} else
+	{
+		WriteOptions w;
+		database_ptr res(new Database(this, name));
+		databases_[name]=res;
+		keystore_->Put(w, db_info,
+					   json_to_string(res->get_meta()));
+		return res;
+	}
+}
+
+void DbEngine::checkpoint()
+{
 }
