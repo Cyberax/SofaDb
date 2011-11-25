@@ -60,22 +60,12 @@ namespace sofadb {
 		const json_value *graft_;
 		graft_deleter_t *deleter_;
 	public:
+		SOFADB_PUBLIC graft_t();
 		graft_t(const json_value *graft, graft_deleter_t *deleter=0) :
-			graft_(graft), deleter_(deleter) {}
-		~graft_t()
+			graft_(graft), deleter_(deleter)
 		{
-			if (graft_ && deleter_)
-				(*deleter_)(graft_);
+			assert(graft);
 		}
-
-		bool empty() const  { return !graft_; }
-		const json_value& grafted() const
-		{
-			assert(!empty());
-			return *graft_;
-		}
-
-		graft_t() : graft_(), deleter_() {}
 		graft_t(const graft_t &other) :
 			graft_(other.graft_), deleter_(other.deleter_) {}
 		graft_t& operator = (const graft_t& other)
@@ -83,6 +73,17 @@ namespace sofadb {
 			graft_ = other.graft_;
 			deleter_ = other.deleter_;
 			return *this;
+		}
+		~graft_t()
+		{
+			if (graft_ && deleter_)
+				(*deleter_)(graft_);
+		}
+
+		const json_value& grafted() const
+		{
+			assert(graft_);
+			return *graft_;
 		}
 	};
 
@@ -140,6 +141,8 @@ namespace sofadb {
 		};
 #endif
 	public:
+		SOFADB_PUBLIC static const json_value empty_val;
+
 		json_value() { disc_ = nil_d; }
 		json_value(json_disc type);
 		json_value(const json_value& other);
@@ -153,7 +156,7 @@ namespace sofadb {
 		json_value& operator = (json_value &&);
 
 		json_disc type() const {return disc_;}
-		json_value normalize_int() const;
+		SOFADB_PUBLIC json_value normalize_int() const;
 
 		void as_nil() { clear(); }
 		bool is_nil() { return disc_==nil_d; }

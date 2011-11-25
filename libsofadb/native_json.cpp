@@ -7,6 +7,7 @@
 using namespace sofadb;
 static const bignum_t max_int_decimal("9223372036854775807"); //2^63
 static const bignum_t min_int_decimal("-9223372036854775808"); //-(2^63)-1
+const json_value json_value::empty_val;
 
 bool sofadb::operator < (const bignum_t &l, const bignum_t &r)
 {
@@ -20,35 +21,38 @@ bool sofadb::operator < (const bignum_t &l, const bignum_t &r)
 		return false;
 
 	//Signs are equal.
-	if (l.digits_.size()<r.digits_.size())
-		return !lneg;
+	if (l.digits_.size()!=r.digits_.size())
+	{
+		if (lneg)
+			return l.digits_.size()>r.digits_.size();
+		else
+			return l.digits_.size()<r.digits_.size();
+	}
 
 	//Use STRING comparison to find out the relation of numbers
 	//It's safe because the length of the left number is equal
 	//to the length of the right number so lexiographical string
 	//comparison (in all sane encodings) produces the same result
 	//as numerical one.
-	return l.digits_ < r.digits_;
+	if (lneg)
+		return l.digits_ > r.digits_;
+	else
+		return l.digits_ < r.digits_;
 }
 
 bool sofadb::operator < (const graft_t &l, const graft_t &r)
 {
-	if (l.empty() && r.empty())
-		return false;
-	if (l.empty() && !r.empty())
-		return false;
-	if (r.empty() && !l.empty())
-		return true;
 	return l.grafted() < r.grafted();
 }
 
 bool sofadb::operator == (const graft_t &l, const graft_t &r)
 {
-	if (l.empty() && r.empty())
-		return true;
-	if (l.empty() != r.empty())
-		return false;
 	return l.grafted() == r.grafted();
+}
+
+graft_t::graft_t() :
+	graft_(&json_value::empty_val), deleter_()
+{
 }
 
 json_value json_value::normalize_int() const
@@ -67,78 +71,59 @@ json_value json_value::normalize_int() const
 		throw std::bad_cast();
 }
 
-bool sofadb::operator == (const json_value &l, const json_value &r)
+template<template<class T> class Operator> bool do_operation(
+	const json_value &l, const json_value &r)
 {
 	if (l.type()==big_int_d && r.type()==int_d ||
 		r.type()==big_int_d && l.type()==int_d)
 	{
 		json_value l1=l.normalize_int();
 		json_value l2=r.normalize_int();
-		return l1.type()==l2.type() && l1.get_int() == l2.get_int();
+		if (l1.type()!=l2.type())
+			return Operator<json_disc>()(l1.type(), l2.type());
+		return Operator<json_value>()(l1.get_int(), l2.get_int());
 	}
 
+	if (l.type()==graft_d && r.type()!=graft_d)
+		return Operator<json_value>()(l.get_graft().grafted(), r);
+	if (r.type()==graft_d && l.type()!=graft_d)
+		return Operator<json_value>()(l, r.get_graft().grafted());
+
 	if (l.type() != r.type())
-		return false;
+		return Operator<json_disc>()(l.type(), r.type());
 	switch(l.type())
 	{
 		case nil_d:
-			return true;
+			return Operator<int>()(1, 1);
 		case bool_d:
-			return l.get_bool() == r.get_bool();
+			return Operator<bool>()(l.get_bool(), r.get_bool());
 		case int_d:
-			return l.get_int() == r.get_int();
+			return Operator<int64_t>()(l.get_int(), r.get_int());
 		case double_d:
-			return l.get_double() == r.get_double();
+			return Operator<double>()(l.get_double(), r.get_double());
 		case string_d:
-			return l.get_str() == r.get_str();
+			return Operator<jstring_t>()(l.get_str(), r.get_str());
 		case big_int_d:
-			return l.get_big_int() == r.get_big_int();
+			return Operator<bignum_t>()(l.get_big_int(), r.get_big_int());
 		case submap_d:
-			return l.get_submap() == r.get_submap();
+			return Operator<submap_t>()(l.get_submap(), r.get_submap());
 		case sublist_d:
-			return l.get_sublist() == r.get_sublist();
+			return Operator<sublist_t>()(l.get_sublist(), r.get_sublist());
 		case graft_d:
-			return l.get_graft() == r.get_graft();
+			return Operator<graft_t>()(l.get_graft(), r.get_graft());
 		default:
 			assert(false);
 	}
 }
 
+bool sofadb::operator == (const json_value &l, const json_value &r)
+{
+	return do_operation<std::equal_to>(l, r);
+}
+
 bool sofadb::operator < (const json_value &l, const json_value &r)
 {
-	if (l.type()==big_int_d && r.type()==int_d ||
-		r.type()==big_int_d && l.type()==int_d)
-	{
-		json_value l1=l.normalize_int();
-		json_value l2=r.normalize_int();
-		return l1.type()<l2.type() || l1.get_int() < l2.get_int();
-	}
-
-	if (l.type() < r.type())
-		return true;
-	switch(l.type())
-	{
-		case nil_d:
-			return false;
-		case bool_d:
-			return l.get_bool() < r.get_bool();
-		case int_d:
-			return l.get_int() < r.get_int();
-		case double_d:
-			return l.get_double() < r.get_double();
-		case string_d:
-			return l.get_str() < r.get_str();
-		case big_int_d:
-			return l.get_big_int() < r.get_big_int();
-		case submap_d:
-			return l.get_submap() < r.get_submap();
-		case sublist_d:
-			return l.get_sublist() < r.get_sublist();
-		case graft_d:
-			return l.get_graft() < r.get_graft();
-		default:
-			assert(false);
-	}
+	return do_operation<std::less>(l, r);
 }
 
 static void *yajl_malloc_impl(void *ctx, unsigned int sz)
@@ -422,10 +407,7 @@ struct json_printer
 	}
 	void operator()(const graft_t &lst)
 	{
-		if (lst.empty())
-			check_status(yajl_gen_null(ptr_.get()));
-		else
-			lst.grafted().apply_visitor(*this);
+		lst.grafted().apply_visitor(*this);
 	}
 };
 
