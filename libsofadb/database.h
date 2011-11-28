@@ -3,7 +3,6 @@
 
 #include "common.h"
 #include "native_json.h"
-#include <boost/optional.hpp>
 
 #define SD_SYSTEM_DB "_sys"
 #define SD_DATA_DB "_data"
@@ -21,9 +20,7 @@ namespace leveldb {
 };
 
 namespace sofadb {
-
 	class DbEngine;
-	typedef boost::optional<jstring_t> maybe_string_t;
 
 	class inline_attachment_t
 	{
