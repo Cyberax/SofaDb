@@ -19,6 +19,11 @@ ENDIF(NOT CMAKE_BUILD_TYPE)
 
 # Define DEBUG on debug builds
 set_directory_properties(PROPERTIES COMPILE_DEFINITIONS_DEBUG DEBUG=1)
+# Define 'NDEBUG' on release builds
+foreach (configuration MINSIZEREL RELWITHDEBINFO RELEASE)
+	 set_directory_properties(PROPERTIES COMPILE_DEFINITIONS_${configuration} "NDEBUG=1")
+endforeach ()
+#set_directory_properties(PROPERTIES COMPILE_DEFINITIONS_RELEASE -DNDEBUG)
 
 IF(WIN32)
 	ADD_DEFINITIONS(-DUNICODE -D_UNICODE -D_DEBUG)
@@ -50,7 +55,7 @@ IF(WIN32)
 	ENDIF()
 ELSEIF(UNIX)
 	ADD_DEFINITIONS(-fPIC)
-	SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -fvisibility=hidden -fvisibility-inlines-hidden")
+	SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -fvisibility=hidden -fvisibility-inlines-hidden -fno-builtin-memcmp")
 	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility=hidden")
 ELSE()
 	MESSAGE(FATAL_ERROR "Unsupported target OS!")

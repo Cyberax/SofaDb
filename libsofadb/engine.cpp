@@ -55,13 +55,13 @@ database_ptr DbEngine::create_a_database(const jstring_t &name)
 	std::string out;
 	if (keystore_->Get(opts, db_info, &out).ok())
 	{
-		database_ptr res(new Database(this, string_to_json(out)));
+		database_ptr res(new Database(string_to_json(out)));
 		databases_[name]=res;
 		return res;
 	} else
 	{
 		WriteOptions w;
-		database_ptr res(new Database(this, name));
+		database_ptr res(new Database(name));
 		databases_[name]=res;
 		keystore_->Put(w, db_info,
 					   json_to_string(res->get_meta()));

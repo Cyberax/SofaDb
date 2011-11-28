@@ -3,6 +3,8 @@
 
 #include "common.h"
 #include <map>
+//#include <boost/unordered_map.hpp>
+//#include "vector_map.h"
 #include <vector>
 
 #define MAX_ALIGNED_MEM 16
@@ -12,6 +14,8 @@ namespace sofadb {
 
 	class json_value;
 	typedef std::map<jstring_t, json_value> submap_t;
+	//typedef boost::unordered_map<jstring_t, json_value> submap_t;
+	//typedef vector_map<jstring_t, json_value> submap_t;
 	typedef std::vector<json_value> sublist_t;
 
 	SOFADB_PUBLIC std::string int_to_string(int64_t in);
@@ -171,9 +175,9 @@ namespace sofadb {
 		{
 			return get_submap()[str];
 		}
-		void insert(jstring_t &&key, json_value &&val)
+		void insert(const jstring_t &key, json_value &&val)
 		{
-			get_submap().insert(std::make_pair(std::move(key), std::move(val)));
+			get_submap().insert(std::make_pair(jstring_t(key), std::move(val)));
 		}
 
 #define STD_FUNCS(type, type_postfix, disc, is_explicit) \

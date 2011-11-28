@@ -1,7 +1,5 @@
-#include "engine.h"
 #include "database.h"
-#include <leveldb/db.h>
-#include <leveldb/write_batch.h>
+#include "storage_interface.h"
 #include <openssl/md5.h>
 #include <time.h>
 #include <boost/lexical_cast.hpp>
@@ -53,13 +51,10 @@ revision_num_t Database::compute_revision(const revision_num_t &prev,
 										const jstring_t &body)
 {
 	static const char alphabet[17]="0123456789abcdef";
-	MD5_CTX ctx;
-	MD5_Init(&ctx);
-	MD5_Update(&ctx, body.data(), body.size());
 	//TODO: attachments
 
 	unsigned char res[MD5_DIGEST_LENGTH+1]={0};
-	MD5_Final(res, &ctx);
+	MD5((const unsigned char*)body.data(), body.size(), res);
 
 	jstring_t str_res;
 	str_res.resize(MD5_DIGEST_LENGTH*2);
@@ -71,17 +66,16 @@ revision_num_t Database::compute_revision(const revision_num_t &prev,
 	return revision_num_t(prev.num()+1, std::move(str_res));
 }
 
-Database::Database(DbEngine *parent, const jstring_t &name)
-	: parent_(parent), closed_(false), name_(name),
-	  json_meta_(submap_d)
+Database::Database(const jstring_t &name)
+	: closed_(false), name_(name), json_meta_(submap_d)
 {
 	//Instance start time is in nanoseconds
 	json_meta_["instance_start_time"].as_int() = int64_t(time(NULL))*100000;
 	json_meta_["db_name"] = name;
 }
 
-Database::Database(DbEngine *parent, json_value &&meta)
-	: parent_(parent), closed_(false)
+Database::Database(json_value &&meta)
+	: closed_(false)
 {
 	json_meta_ = std::move(meta);
 	name_ = json_meta_["db_name"].get_str();
@@ -89,7 +83,6 @@ Database::Database(DbEngine *parent, json_value &&meta)
 
 void Database::check_closed()
 {
-	guard_t g(mutex_);
 	if (closed_)
 		err(result_code_t::sError) << "Database " << name_ << " is closed";
 }
@@ -111,6 +104,7 @@ std::pair<json_value, json_value>
 	return std::make_pair(std::move(sanitized), std::move(special));
 }
 
+/*
 leveldb::batch_ptr_t Database::make_batch()
 {
 	return batch_ptr_t(new WriteBatch());
@@ -122,32 +116,44 @@ void Database::commit_batch(leveldb::batch_ptr_t batch, bool sync)
 	wo.sync = sync;
 	parent_->check(parent_->keystore_->Write(wo, batch.get()));
 }
+*/
 
-revision_t Database::put(const jstring_t &id, const revision_num_t& old_rev,
-						const json_value &meta, const json_value &content,
-						bool sync_commit, leveldb::batch_ptr_t batch)
+bool Database::get_tip(storage_t *ifc,
+					   const jstring_t &path_base, json_value &res)
 {
-	guard_t g(mutex_);
-	check_closed();
+	jstring_t rev_info_log;
+	if (ifc->try_get(path_base, &rev_info_log))
+	{
+		//There's an existing document.
+		res = string_to_json(rev_info_log);
+		return true;
+	} else
+	{
+		res.as_sublist();
+		return false;
+	}
+}
 
-	ReadOptions opts;
-	WriteOptions wo;
-	wo.sync = sync_commit;
-	if (sync_commit && batch)
-		err(result_code_t::sError) << "Attempting to do commits during batch";
+revision_t Database::put(storage_t *ifc,
+						 const jstring_t &id, const revision_num_t& old_rev,
+						 const json_value &meta, const json_value &content)
+{
+	check_closed();
 
 	//Ok. That gets interesting!
 	//Let's roll!
 	revision_t rev;
 
 	//Check if there is an old revision with this ID
-	std::string prev_rev;
-	std::string doc_rev_path=make_path(id, 0);
+	const std::string doc_rev_path_base=make_path(id);
 
-	if (parent_->keystore_->Get(opts, doc_rev_path, &prev_rev).ok())
+	json_value rev_log;
+	bool has_prev = get_tip(ifc, doc_rev_path_base, rev_log);
+	if (has_prev)
 	{
-		//There's an existing document.
-		if (old_rev.empty() || prev_rev != old_rev.full_string())
+		const std::string &prev_rev_id=
+				rev_log.get_sublist().back().get_sublist().at(0).get_str();
+		if (old_rev.empty() || prev_rev_id != old_rev.full_string())
 			return rev; //Conflict!
 	}
 	//Update or create a document!
@@ -158,31 +164,17 @@ revision_t Database::put(const jstring_t &id, const revision_num_t& old_rev,
 		rev.previous_rev_ = old_rev;
 	else
 		rev.previous_rev_ = revision_num_t::empty_revision;
-
-	json_value serialized(submap_d);
-	serialized["deleted"].as_bool() =rev.deleted_;
-	serialized["prev_revid"].as_str() = rev.previous_rev_.full_string();
-	serialized["atts"] = json_value(); //TODO: attachments
-	serialized["data"].as_graft() = &content;
-
-	jstring_t body=json_to_string(serialized);
-	rev.rev_ = compute_revision(rev.previous_rev_, body);
-	//TODO: attachments
+	rev.rev_ = store_data(ifc, doc_rev_path_base, rev.previous_rev_,
+						  false, content);
 	assert(!rev.rev_.empty());
 
-	//Write tip pointer
-	if (batch)
-		batch->Put(doc_rev_path, rev.rev_.full_string());
-	else
-		parent_->check(
-			parent_->keystore_->Put(wo, doc_rev_path, rev.rev_.full_string()));
+	//Format the revlog
+	json_value rev_tuple(sublist_d);
+	rev_tuple.get_sublist().push_back(rev.rev_.full_string());
+	rev_log.as_sublist().push_back(std::move(rev_tuple));
 
-	std::string doc_data_path=make_path(rev.id_, &rev.rev_.full_string());
-	//Write the document
-	if (batch)
-		batch->Put(doc_data_path, body);
-	else
-		parent_->check(parent_->keystore_->Put(wo, doc_data_path, body));
+	//Write tip pointer
+	ifc->put(doc_rev_path_base, json_to_string(rev_log));
 
 	VLOG_MACRO(1) << "Created document " << id << " in the database "
 			  << name_ << " revid=" << rev.rev_ << std::endl;
@@ -190,41 +182,63 @@ revision_t Database::put(const jstring_t &id, const revision_num_t& old_rev,
 	return std::move(rev);
 }
 
-jstring_t Database::make_path(const jstring_t &id, const std::string *rev)
+revision_num_t Database::store_data(storage_t *ifc,
+									const jstring_t &doc_data_path_base,
+									const revision_num_t &prev_rev_,
+									bool deleted,
+									const json_value &content)
+{
+	//No need to call constructors each time!
+	const static std::string deleted_text = "deleted";
+	const static std::string prev_revid_text = "prev_revid";
+	const static std::string atts_text = "atts";
+	const static std::string data_text = "data";
+
+	json_value serialized(submap_d);
+	serialized.insert(deleted_text, json_value(deleted));
+	serialized.insert(prev_revid_text, prev_rev_.full_string());
+	serialized.insert(atts_text, json_value()); //TODO: attachments
+	serialized.insert(data_text, graft_t(&content));
+
+	jstring_t body=json_to_string(serialized);
+	revision_num_t rev=compute_revision(prev_rev_, body);
+	//TODO: attachments
+
+	//Write the document
+	std::string doc_data_path=doc_data_path_base+rev.full_string();
+	ifc->put(doc_data_path, body);
+
+	//TODO: attachments
+	return rev;
+}
+
+jstring_t Database::make_path(const jstring_t &id)
 {
 	//Optimized, so it's ugly.
 	jstring_t res;
-	res.reserve(name_.size() + id.size() + 16 + (rev?rev->size():0));
+	res.reserve(name_.size() + id.size() + 42);
+
 	res.append(SD_DATA_DB"/", sizeof(SD_DATA_DB"/"));
 	res.append(name_).append(DB_SEPARATOR, sizeof(DB_SEPARATOR));
 	res.append(id);
-	if (!rev)
-		res.append(REV_SEPARATOR"tip", sizeof(REV_SEPARATOR"tip"));
-	else
-		res.append(REV_SEPARATOR, sizeof(REV_SEPARATOR)).append(*rev);
+	res.append(REV_SEPARATOR);
 	return res;
 }
 
-
-Database::res_t Database::get(const jstring_t &id, const revision_num_t& rev)
+Database::res_t Database::get(storage_t *ifc,
+							  const jstring_t &id, const revision_num_t& rev)
 {
-	//Make sure that we have a stable view. No locking here!
-	const Snapshot *snap=parent_->keystore_->GetSnapshot();
-	ON_BLOCK_EXIT_OBJ(*parent_->keystore_, &DB::ReleaseSnapshot, snap);
-
-	ReadOptions ro;
-	ro.snapshot=snap;
-
 	std::pair<revision_t, json_value> res(
 				std::make_pair(revision_t(), json_value()));
 
+	jstring_t path_base = make_path(id);
 	jstring_t path;
 	if (rev.empty())
 	{
 		jstring_t version;
-		if (!parent_->keystore_->Get(ro, make_path(id, 0), &version).ok())
-			return std::move(res);
-		path = make_path(id, &version);
+		if (!ifc->try_get(path_base, &version))
+			return std::make_pair(revision_t(), json_value());
+		path = path_base+version;
 
 		res.first.id_=id;
 		res.first.rev_ = revision_num_t(version);
@@ -232,11 +246,23 @@ Database::res_t Database::get(const jstring_t &id, const revision_num_t& rev)
 	{
 		res.first.id_ = id;
 		res.first.rev_ = rev;
-		path = make_path(id, &rev.full_string());
+		path = path = path_base+rev.full_string();
 	}
 
 	jstring_t val;
-	parent_->check(parent_->keystore_->Get(ro, path, &val));
+	if (ifc->try_get(path, &val))
+	{
+		//Note, previous version used MVCC snapshots. However, it's
+		//not strictly necessary here - stored documents are immutable and
+		//can't change between the version query and this point.
+		//However, it's theoretically possible that pruning can occur
+		//between getting the version and this point.
+		if (rev.empty())
+			VLOG_MACRO(1) << "Pruned database during document retreival, ID="
+						  << id
+						  << std::endl;
+		return std::make_pair(revision_t(), json_value());
+	}
 
 	json_value serialized=string_to_json(val);
 	res.first.deleted_ = serialized["deleted"].get_bool();

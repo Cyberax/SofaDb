@@ -2,6 +2,7 @@
 #define ENGINE_H
 #include "common.h"
 #include <leveldb/db.h>
+#include "storage_interface.h"
 
 #include <map>
 
@@ -35,6 +36,8 @@ namespace sofadb {
 		SOFADB_PUBLIC void checkpoint();
 		SOFADB_PUBLIC database_ptr create_a_database(const jstring_t &name);
 
+		SOFADB_PUBLIC storage_ptr_t create_storage(bool sync);
+		//SOFADB_PUBLIC batch_storage_ptr_t create_batch_storage();
 	private:
 		void check(const leveldb::Status &status);
 	};

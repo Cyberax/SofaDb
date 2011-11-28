@@ -17,6 +17,8 @@ FILE(GLOB libsofadb_INCLUDES
 	errors.h
 	native_json.h
 	scope_guard.h
+	storage_t.h
+	vector_map.h
 )
 
 INCLUDE_DIRECTORIES(.)

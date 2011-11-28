@@ -20,7 +20,7 @@ namespace leveldb {
 };
 
 namespace sofadb {
-	class DbEngine;
+	class storage_t;
 
 	class inline_attachment_t
 	{
@@ -146,15 +146,12 @@ namespace sofadb {
 	*/
 	class Database
 	{
-		DbEngine *parent_;
-		std::recursive_mutex mutex_;
-
 		bool closed_;
 		json_value json_meta_;
 		jstring_t name_;
 
-		Database(DbEngine *parent, const jstring_t &name);
-		Database(DbEngine *parent, json_value &&meta);
+		Database(const jstring_t &name);
+		Database(json_value &&meta);
 
 		friend class DbEngine;
 	public:
@@ -167,17 +164,17 @@ namespace sofadb {
 			return other.json_meta_ == json_meta_;
 		}
 
-		SOFADB_PUBLIC leveldb::batch_ptr_t make_batch();
-		SOFADB_PUBLIC void commit_batch(leveldb::batch_ptr_t batch, bool sync);
+//		SOFADB_PUBLIC leveldb::batch_ptr_t make_batch();
+//		SOFADB_PUBLIC void commit_batch(leveldb::batch_ptr_t batch, bool sync);
 
-		SOFADB_PUBLIC res_t get(const jstring_t &id,
+		SOFADB_PUBLIC res_t get(storage_t *ifc,
+			const jstring_t &id,
 			const revision_num_t& = revision_num_t::empty_revision);
-		SOFADB_PUBLIC revision_t put(
+		SOFADB_PUBLIC revision_t put(storage_t *ifc,
 			const jstring_t &id, const revision_num_t& old_rev,
-			const json_value &meta, const json_value &content,
-			bool sync_commit,
-			leveldb::batch_ptr_t batch = leveldb::batch_ptr_t());
+			const json_value &meta, const json_value &content);
 
+		/*
 		SOFADB_PUBLIC revision_t remove(
 			const jstring_t &id, const revision_num_t& rev,
 			leveldb::batch_ptr_t batch = leveldb::batch_ptr_t());
@@ -185,13 +182,22 @@ namespace sofadb {
 			const jstring_t &id, const revision_num_t &rev,
 			const jstring_t &dest_id, const revision_num_t &dest_rev,
 			leveldb::batch_ptr_t batch=leveldb::batch_ptr_t());
+		*/
 
 		std::pair<json_value, json_value>
 			sanitize_and_get_reserved_words(const json_value &tp);
 	private:
 		void check_closed();
 
-		jstring_t make_path(const jstring_t &id, const std::string *rev);
+		bool get_tip(storage_t *ifc,
+					 const jstring_t &path_base, json_value &res);
+		revision_num_t store_data(storage_t *ifc,
+								  const jstring_t &doc_data_path_base,
+								  const revision_num_t &prev_rev,
+								  bool deleted,
+								  const json_value &content);
+
+		jstring_t make_path(const jstring_t &id);
 		revision_num_t compute_revision(
 			const revision_num_t &prev, const jstring_t &body);
 	};
