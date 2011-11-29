@@ -23,8 +23,8 @@ namespace sofadb {
 							 snapshot_t *snap=0)=0;
 		virtual void put(const jstring_t &key, const jstring_t &val)=0;
 
-		virtual snapshot_t* snapshot();
-		virtual void release_snapshot(snapshot_t*);
+		virtual snapshot_t* snapshot() = 0;
+		virtual void release_snapshot(snapshot_t*) = 0;
 	};
 
 	class batch_storage_t : public storage_t

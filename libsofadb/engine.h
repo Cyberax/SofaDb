@@ -38,8 +38,8 @@ namespace sofadb {
 
 		SOFADB_PUBLIC storage_ptr_t create_storage(bool sync);
 		//SOFADB_PUBLIC batch_storage_ptr_t create_batch_storage();
-	private:
-		void check(const leveldb::Status &status);
+
+		static void check(const leveldb::Status &status);
 	};
 };
 

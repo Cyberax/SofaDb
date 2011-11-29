@@ -11,6 +11,47 @@
 using namespace sofadb;
 using namespace leveldb;
 
+class db_storage_t : public storage_t
+{
+	WriteOptions wo_;
+	ReadOptions ro_;
+	leveldb::db_ptr_t db_;
+public:
+	db_storage_t(leveldb::db_ptr_t db, bool sync) : db_(db)
+	{
+		wo_.sync = sync;
+		ro_.verify_checksums = false;
+	}
+
+	virtual bool try_get(const jstring_t &key, jstring_t *res,
+						 snapshot_t *snap)
+	{
+		assert(!snap);
+
+		Status st = db_->Get(ro_, key, res);
+		if (st.IsNotFound())
+			return false;
+		if (!st.ok())
+			DbEngine::check(st);
+		return true;
+	}
+
+	virtual void put(const jstring_t &key, const jstring_t &val)
+	{
+		DbEngine::check(db_->Put(wo_, key, val));
+	}
+
+	virtual snapshot_t* snapshot()
+	{
+		throw std::out_of_range("No snapshots allowed");
+	}
+
+	virtual void release_snapshot(snapshot_t*)
+	{
+		throw std::out_of_range("No snapshots allowed");
+	}
+};
+
 DbEngine::DbEngine(const jstring_t &filename, bool temporary)
 {
 	this->filename_ = filename;
@@ -71,4 +112,9 @@ database_ptr DbEngine::create_a_database(const jstring_t &name)
 
 void DbEngine::checkpoint()
 {
+}
+
+storage_ptr_t DbEngine::create_storage(bool sync)
+{
+	return storage_ptr_t(new db_storage_t(keystore_, sync));
 }
