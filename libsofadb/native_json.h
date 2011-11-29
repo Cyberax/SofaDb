@@ -288,6 +288,7 @@ namespace sofadb {
 		return res;
 	}
 
+	SOFADB_PUBLIC json_value json_from_stream(std::istream &val);
 	SOFADB_PUBLIC json_value string_to_json(const jstring_t &val);
 	inline std::ostream& operator << (std::ostream &str, const json_value &val)
 	{

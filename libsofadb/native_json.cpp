@@ -338,6 +338,49 @@ json_value sofadb::string_to_json(const jstring_t &str)
 	return res;
 }
 
+json_value sofadb::json_from_stream(std::istream &val)
+{
+	json_value res;
+	res.as_submap();
+
+	json_processor processor;
+	processor.stack_.push_back(&res);
+
+	boost::shared_ptr<yajl_handle_t> hndl(
+				yajl_alloc(&json_callbacks, &config, &alloc_funcs, &processor),
+				yajl_deleter());
+
+	val.exceptions(std::ios_base::badbit | std::ios_base::eofbit);
+
+	char buf[1025]={0};
+	while(true)
+	{
+		size_t read=val.rdbuf()->sgetn(buf, 1024);
+		if (val.eof() || val.fail())
+			throw std::bad_exception();
+
+		yajl_status status=yajl_parse(hndl.get(),
+									  (const unsigned char*)buf, read);
+
+		if (status == yajl_status_insufficient_data)
+			continue;
+		if (status == yajl_status_ok)
+		{
+			size_t slack=yajl_get_bytes_consumed(hndl.get());
+			for(int f=slack;f<read;++f)
+				val.rdbuf()->sungetc();
+			break;
+		}
+		handle_status(hndl.get(), status, "");
+	}
+
+	yajl_status status2=yajl_parse_complete(hndl.get());
+	handle_status(hndl.get(), status2, "");
+
+	//assert(processor.stack_.size());
+	return res;
+}
+
 struct printer_context
 {
 	jstring_t &res_;

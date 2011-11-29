@@ -93,3 +93,34 @@ BOOST_AUTO_TEST_CASE(test_database_update)
 							   json_value(submap_d), js2);
 	BOOST_REQUIRE(!rev4.empty());
 }
+
+BOOST_AUTO_TEST_CASE(test_revlog)
+{
+	jstring_t templ("/tmp/sofa_XXXXXX");
+	if (!mkdtemp(&templ[0]))
+		throw std::bad_exception();
+	DbEngine engine(templ, true);
+	database_ptr ptr=engine.create_a_database("test");
+
+	json_value js=string_to_json("{\"Hello\" : \"world\"}");
+	std::string id = "Hello";
+
+	revision_num_t old(213, "NotExists");
+	storage_ptr_t stg=engine.create_storage(false);
+	//storage_ptr_t store = engine.create_batch_storage();
+	for(int f=0;f<10; ++f)
+	{
+		revision_t rev=ptr->put(stg.get(), id, old, json_value(), js);
+		old = std::move(rev.rev_);
+	}
+
+	json_value log;
+	ptr->get(stg.get(), id, 0, 0, 0, &log);
+
+	BOOST_REQUIRE_EQUAL(revlog_wrapper(log).top_rev_id(), old);
+
+	const sublist_t &first=log.as_sublist().at(1).get_sublist();
+	BOOST_REQUIRE_EQUAL(first.at(0).get_int(), 213);
+	BOOST_REQUIRE_EQUAL(first.at(1).get_str(), "NotExists");
+	BOOST_REQUIRE_EQUAL(first.at(2).get_bool(), false);
+}
