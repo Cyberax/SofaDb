@@ -9,8 +9,8 @@ void print_pair(const Slice & key, const Slice &val)
 	const static char alphabet[]="0123456789abcdef";
 
 	std::cout << key.ToString() << " : ";
-	std::string offset;
-	offset.resize(key.ToString().length()+3, ' ');
+//	std::string offset;
+//	offset.resize(key.ToString().length()+3, ' ');
 
 	for(size_t f=0;f < val.size(); ++f)
 	{
@@ -26,8 +26,8 @@ void print_pair(const Slice & key, const Slice &val)
 			std::cout << '\\' << alphabet[cur/16] << alphabet[cur%16];
 		}
 
-		if (f!=0 && (f%70)==0 && f!=(val.size()-1))
-			std::cout << std::endl << offset;
+//		if (f!=0 && (f%70)==0 && f!=(val.size()-1))
+//			std::cout << std::endl << "\t";
 	}
 	std::cout << std::endl;
 }

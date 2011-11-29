@@ -9,7 +9,8 @@ using namespace sofadb;
 BOOST_AUTO_TEST_CASE(test_database_creation)
 {
 	jstring_t templ("/tmp/sofa_XXXXXX");
-	mkdtemp(&templ[0]);
+	if (!mkdtemp(&templ[0]))
+		throw std::bad_exception();
 
 	database_ptr info;
 	{
@@ -29,8 +30,9 @@ BOOST_AUTO_TEST_CASE(test_database_creation)
 BOOST_AUTO_TEST_CASE(test_database_put)
 {
 	jstring_t templ("/tmp/sofa_XXXXXX");
-	mkdtemp(&templ[0]);
-	DbEngine engine(templ, true);
+	if (!mkdtemp(&templ[0]))
+		throw std::bad_exception();
+	DbEngine engine(templ, false);
 
 	database_ptr ptr=engine.create_a_database("test");
 
@@ -61,18 +63,13 @@ BOOST_AUTO_TEST_CASE(test_database_put)
 
 	BOOST_REQUIRE_EQUAL(js, v1);
 	BOOST_REQUIRE_EQUAL(js, v2);
-
-	for(int f=0;f<100000;++f)
-	{
-		json_value v3; revision_t r3;
-		ptr->get(stg.get(), id, &old, &v3, &r3);
-	}
 }
 
 BOOST_AUTO_TEST_CASE(test_database_update)
 {
 	std::string templ("/tmp/sofa_XXXXXX");
-	mkdtemp(&templ[0]);
+	if (!mkdtemp(&templ[0]))
+		throw std::bad_exception();
 	DbEngine engine(templ, true);
 
 	database_ptr ptr=engine.create_a_database("test");
