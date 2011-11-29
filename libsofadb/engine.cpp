@@ -60,8 +60,9 @@ DbEngine::DbEngine(const jstring_t &filename, bool temporary)
 	Options opts;
 	opts.block_size=1024;
 	opts.create_if_missing = true;
-	opts.paranoid_checks=1;
+	opts.paranoid_checks=0;
 	opts.compression=kSnappyCompression;
+//	opts.write_buffer_size = 24*1024*1024;
 
 	DB *db;
 	leveldb::Status status = leveldb::DB::Open(opts, filename, &db);

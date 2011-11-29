@@ -29,6 +29,11 @@ int main(int argc, char **argv)
 
 	storage_ptr_t stg=engine.create_storage(false);
 
+//	json_value val=json_from_stream(stream);
+//	for(int f=0;f<20000;++f)
+//		ptr->put(stg.get(), "test"+int_to_string(f),
+//			 revision_num_t::empty_revision, json_value(), val);
+
 	while(true)
 	{
 		json_value val=json_from_stream(stream);
