@@ -32,7 +32,7 @@ BOOST_AUTO_TEST_CASE(test_database_put)
 	jstring_t templ("/tmp/sofa_XXXXXX");
 	if (!mkdtemp(&templ[0]))
 		throw std::bad_exception();
-	DbEngine engine(templ, false);
+	DbEngine engine(templ, true);
 
 	database_ptr ptr=engine.create_a_database("test");
 
@@ -43,7 +43,7 @@ BOOST_AUTO_TEST_CASE(test_database_put)
 	revision_num_t old;
 	storage_ptr_t stg=engine.create_storage(false);
 	//storage_ptr_t store = engine.create_batch_storage();
-	for(int f=0;f<100; ++f)
+	for(int f=0;f<10; ++f)
 	{
 		revision_t rev=ptr->put(stg.get(), id, old, json_value(), js);
 		old = std::move(rev.rev_);

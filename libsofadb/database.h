@@ -78,6 +78,10 @@ namespace sofadb {
 	{
 		return l.num() == r.num() && l.uniq() == r.uniq();
 	}
+	inline bool operator != (const revision_num_t &l, const revision_num_t &r)
+	{
+		return !(l==r);
+	}
 
 	inline std::ostream& operator << (std::ostream& str,
 									  const revision_num_t &r)
@@ -187,7 +191,7 @@ namespace sofadb {
 	private:
 		void check_closed();
 
-		bool get_tip(storage_t *ifc,
+		bool get_revlog(storage_t *ifc,
 					 const jstring_t &path_base, json_value &res);
 		revision_num_t store_data(storage_t *ifc,
 								  const jstring_t &doc_data_path_base,
@@ -200,14 +204,45 @@ namespace sofadb {
 			const revision_num_t &prev, const jstring_t &body);
 	};
 
+	/**
+		The structure of revlog is:
+		[ [[1, "conflicted"], [2, "conflicted"], ...],
+		  [0, "id", true], ["1", "id2", true],..
+		]
+
+		Where "confliced" tuples are lists of conflicted revisions and
+		[num, "id", available] triples describe the stored revisions
+	  */
 	struct revlog_wrapper
 	{
-		const json_value &log_;
-		revlog_wrapper(const json_value &val) : log_(val) {}
+		json_value &log_;
+		revlog_wrapper(json_value &val) : log_(val) {}
 
-		const std::string & top_rev_id() const
+		void init()
 		{
-			return log_.get_sublist().back().get_sublist().at(0).get_str();
+			assert(log_.is_nil());
+			//Reserve the first tuple for conflicts info
+			log_.as_sublist().reserve(3);
+			log_.as_sublist().push_back(json_value(sublist_d));
+		}
+
+		void add_rev_info(const revision_num_t &rev, bool available)
+		{
+			json_value triple(sublist_d);
+			sublist_t &sub = triple.get_sublist();
+			sub.reserve(3);
+			sub.push_back(json_value(int64_t(rev.num())));
+			sub.push_back(rev.uniq());
+			sub.push_back(json_value(available));
+
+			log_.as_sublist().push_back(std::move(triple));
+		}
+
+		revision_num_t top_rev_id() const
+		{
+			const sublist_t& triple=log_.get_sublist().back().get_sublist();
+			return revision_num_t(triple.at(0).get_int(),
+								  triple.at(1).get_str());
 		}
 	};
 }; //namespace sofadb

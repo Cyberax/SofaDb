@@ -104,7 +104,7 @@ std::pair<json_value, json_value>
 	return std::make_pair(std::move(sanitized), std::move(special));
 }
 
-bool Database::get_tip(storage_t *ifc,
+bool Database::get_revlog(storage_t *ifc,
 					   const jstring_t &path_base, json_value &res)
 {
 	jstring_t rev_info_log;
@@ -115,7 +115,7 @@ bool Database::get_tip(storage_t *ifc,
 		return true;
 	} else
 	{
-		res.as_sublist();
+		revlog_wrapper(res).init();
 		return false;
 	}
 }
@@ -134,12 +134,12 @@ revision_t Database::put(storage_t *ifc,
 	const std::string doc_rev_path_base=make_path(id);
 
 	json_value rev_log;
-	bool has_prev = get_tip(ifc, doc_rev_path_base, rev_log);
+	bool has_prev = get_revlog(ifc, doc_rev_path_base, rev_log);
 	if (has_prev)
 	{
-		const std::string &prev_rev_id=revlog_wrapper(rev_log).top_rev_id();
-		if (old_rev.empty() || prev_rev_id != old_rev.full_string())
-			return rev; //Conflict!
+		revision_num_t prev_rev=revlog_wrapper(rev_log).top_rev_id();
+		if (old_rev.empty() || prev_rev != old_rev)
+			return std::move(rev); //Conflict!
 	}
 	//Update or create a document!
 
@@ -154,11 +154,14 @@ revision_t Database::put(storage_t *ifc,
 	assert(!rev.rev_.empty());
 
 	//Format the revlog
-	json_value rev_tuple(sublist_d);
-	rev_tuple.get_sublist().push_back(rev.rev_.full_string());
-	rev_log.as_sublist().push_back(std::move(rev_tuple));
+	if (!old_rev.empty() && !has_prev)
+	{
+		//We have a prior but missing revision
+		revlog_wrapper(rev_log).add_rev_info(old_rev, false);
+	}
+	revlog_wrapper(rev_log).add_rev_info(rev.rev_, true);
 
-	//Write tip pointer
+	//Write the revlog info
 	ifc->put(doc_rev_path_base, json_to_string(rev_log));
 
 	VLOG_MACRO(1) << "Created document " << id << " in the database "
@@ -237,8 +240,7 @@ bool Database::get(storage_t *ifc,
 		//Otherwise get the last revision
 		if (!rev_num)
 		{
-			const std::string &rev_id=revlog_wrapper(log).top_rev_id();
-			num = revision_num_t(rev_id);
+			num = revlog_wrapper(log).top_rev_id();
 		} else
 			num = *rev_num;
 	} else

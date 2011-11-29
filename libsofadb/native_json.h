@@ -216,7 +216,7 @@ namespace sofadb {
 
 		STD_FUNCS(bool, bool, bool_d, explicit)
 		STD_FUNCS(int64_t, int, int_d, explicit)
-		STD_FUNCS(double, double, double_d, )
+		STD_FUNCS(double, double, double_d, explicit)
 		STD_FUNCS(jstring_t, str, string_d, )
 		STD_FUNCS(bignum_t, big_int, big_int_d,)
 		STD_FUNCS(submap_t, submap, submap_d,)

@@ -96,7 +96,7 @@ template<template<class T> class Operator> bool do_operation(
 		const json_value &l2=r.normalize_int();
 		if (l1.type()!=l2.type())
 			return Operator<json_disc>()(l1.type(), l2.type());
-		return Operator<json_value>()(l1.get_int(), l2.get_int());
+		return Operator<int64_t>()(l1.get_int(), l2.get_int());
 	}
 
 	if (l.type()==graft_d && r.type()!=graft_d)
@@ -221,7 +221,7 @@ static int json_number(void * ctx, const char * numberVal,
 		double val=0;
 		if (sscanf(digits.c_str(), "%lf", &val) == EOF)
 			return 0;
-		advance_list_with(proc, val);
+		advance_list_with(proc, json_value(val));
 	} else
 	{
 		json_value v(bignum_t(std::move(digits)));
