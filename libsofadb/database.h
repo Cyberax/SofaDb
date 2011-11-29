@@ -155,8 +155,6 @@ namespace sofadb {
 
 		friend class DbEngine;
 	public:
-		typedef std::pair<revision_t, json_value> res_t;
-
 		const json_value& get_meta() const {return json_meta_;}
 
 		bool operator == (const Database &other) const
@@ -164,12 +162,12 @@ namespace sofadb {
 			return other.json_meta_ == json_meta_;
 		}
 
-//		SOFADB_PUBLIC leveldb::batch_ptr_t make_batch();
-//		SOFADB_PUBLIC void commit_batch(leveldb::batch_ptr_t batch, bool sync);
-
-		SOFADB_PUBLIC res_t get(storage_t *ifc,
-			const jstring_t &id,
-			const revision_num_t& = revision_num_t::empty_revision);
+		SOFADB_PUBLIC bool get(storage_t *ifc,
+							   const jstring_t &id,
+							   const revision_num_t *rev_num,
+							   json_value *content,
+							   revision_t *rev=0,
+							   json_value *rev_log=0);
 		SOFADB_PUBLIC revision_t put(storage_t *ifc,
 			const jstring_t &id, const revision_num_t& old_rev,
 			const json_value &meta, const json_value &content);
@@ -202,6 +200,16 @@ namespace sofadb {
 			const revision_num_t &prev, const jstring_t &body);
 	};
 
+	struct revlog_wrapper
+	{
+		const json_value &log_;
+		revlog_wrapper(const json_value &val) : log_(val) {}
+
+		const std::string & top_rev_id() const
+		{
+			return log_.get_sublist().back().get_sublist().at(0).get_str();
+		}
+	};
 }; //namespace sofadb
 
 #endif // SOFA_DATABASE_H

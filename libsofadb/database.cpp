@@ -151,8 +151,7 @@ revision_t Database::put(storage_t *ifc,
 	bool has_prev = get_tip(ifc, doc_rev_path_base, rev_log);
 	if (has_prev)
 	{
-		const std::string &prev_rev_id=
-				rev_log.get_sublist().back().get_sublist().at(0).get_str();
+		const std::string &prev_rev_id=revlog_wrapper(rev_log).top_rev_id();
 		if (old_rev.empty() || prev_rev_id != old_rev.full_string())
 			return rev; //Conflict!
 	}
@@ -177,7 +176,8 @@ revision_t Database::put(storage_t *ifc,
 	ifc->put(doc_rev_path_base, json_to_string(rev_log));
 
 	VLOG_MACRO(1) << "Created document " << id << " in the database "
-			  << name_ << " revid=" << rev.rev_ << std::endl;
+				  << name_ << " revid=" << rev.rev_ << " at "
+				  << doc_rev_path_base << "..." << std::endl;
 
 	return std::move(rev);
 }
@@ -219,57 +219,75 @@ jstring_t Database::make_path(const jstring_t &id)
 	res.reserve(name_.size() + id.size() + 42);
 
 	res.append(SD_DATA_DB"/", sizeof(SD_DATA_DB"/"));
-	res.append(name_).append(DB_SEPARATOR, sizeof(DB_SEPARATOR));
+	res.append(name_);
+	res.append(DB_SEPARATOR, sizeof(DB_SEPARATOR));
 	res.append(id);
 	res.append(REV_SEPARATOR);
 	return res;
 }
 
-Database::res_t Database::get(storage_t *ifc,
-							  const jstring_t &id, const revision_num_t& rev)
+bool Database::get(storage_t *ifc,
+				   const jstring_t &id, const revision_num_t *rev_num,
+				   json_value *content, revision_t *rev, json_value *rev_log)
 {
-	std::pair<revision_t, json_value> res(
-				std::make_pair(revision_t(), json_value()));
-
+	assert(content || rev || rev_log); //At least something must be present!
 	jstring_t path_base = make_path(id);
-	jstring_t path;
-	if (rev.empty())
-	{
-		jstring_t version;
-		if (!ifc->try_get(path_base, &version))
-			return std::make_pair(revision_t(), json_value());
-		path = path_base+version;
 
-		res.first.id_=id;
-		res.first.rev_ = revision_num_t(version);
+	revision_num_t num;
+	if (!rev_num || rev_log)
+	{
+		//We need to query the revision history either if we are interested
+		//in it or if we don't know it.
+		jstring_t version_log;
+		if (!ifc->try_get(path_base, &version_log))
+			return false;
+
+		json_value log = string_to_json(version_log);
+		if (rev_log)
+			*rev_log = std::move(log);
+		if (!content && !rev) //We're not interested in further info
+			return true;
+
+		//Otherwise get the last revision
+		if (!rev_num)
+		{
+			const std::string &rev_id=revlog_wrapper(log).top_rev_id();
+			num = revision_num_t(rev_id);
+		} else
+			num = *rev_num;
 	} else
 	{
-		res.first.id_ = id;
-		res.first.rev_ = rev;
-		path = path = path_base+rev.full_string();
+		assert(rev_num);
+		num = *rev_num;
 	}
 
 	jstring_t val;
-	if (ifc->try_get(path, &val))
+	if (!ifc->try_get(path_base+num.full_string(), &val))
 	{
 		//Note, previous version used MVCC snapshots. However, it's
 		//not strictly necessary here - stored documents are immutable and
 		//can't change between the version query and this point.
 		//However, it's theoretically possible that pruning can occur
 		//between getting the version and this point.
-		if (rev.empty())
+		if (rev_num)
 			VLOG_MACRO(1) << "Pruned database during document retreival, ID="
 						  << id
 						  << std::endl;
-		return std::make_pair(revision_t(), json_value());
+		return false; //Revision was not found :(
 	}
 
 	json_value serialized=string_to_json(val);
-	res.first.deleted_ = serialized["deleted"].get_bool();
-	res.first.previous_rev_ = revision_num_t(serialized["prev_revid"].get_str());
-	//serialized["atts"] = json_value(); //TODO: attachments
+	if (content)
+		*content = std::move(serialized["data"]);
 
-	res.second = std::move(serialized["data"]);
+	if (rev)
+	{
+		rev->id_ = id;
+		rev->deleted_ = serialized["deleted"].get_bool();
+		rev->previous_rev_ = revision_num_t(serialized["prev_revid"].get_str());
+		//serialized["atts"] = json_value(); //TODO: attachments
+		rev->rev_ = num;
+	}
 
-	return std::move(res);
+	return true;
 }

@@ -41,22 +41,26 @@ BOOST_AUTO_TEST_CASE(test_database_put)
 	revision_num_t old;
 	storage_ptr_t stg=engine.create_storage(false);
 	//storage_ptr_t store = engine.create_batch_storage();
-	for(int f=0;f<100000; ++f)
+	for(int f=0;f<100; ++f)
 	{
-		revision_t rev=ptr->put(stg.get(),
-								id+int_to_string(f), old, json_value(), js);
+		revision_t rev=ptr->put(stg.get(), id, old, json_value(), js);
 		old = std::move(rev.rev_);
 	}
 	//engine.commit_batch(store, false);
 	//ptr->commit_batch(batch, false);
 
-	Database::res_t rev2=ptr->get(stg.get(), id);
-	Database::res_t rev3=ptr->get(stg.get(), id, old);
-	BOOST_REQUIRE_EQUAL(rev2.first.rev_, rev3.first.rev_);
-	BOOST_REQUIRE_EQUAL(rev2.second, rev3.second);
+	json_value v1; revision_t r1;
+	ptr->get(stg.get(), id, 0, &v1, &r1);
+	json_value v2; revision_t r2;
+	ptr->get(stg.get(), id, &old, &v2, &r2);
+	json_value v3; revision_t r3;
+	ptr->get(stg.get(), id, &old, &v3, &r3);
 
-	BOOST_REQUIRE_EQUAL(js, rev2.second);
-	BOOST_REQUIRE_EQUAL(js, rev3.second);
+	BOOST_REQUIRE_EQUAL(r1.rev_, r2.rev_);
+	BOOST_REQUIRE_EQUAL(r1.rev_, r3.rev_);
+
+	BOOST_REQUIRE_EQUAL(js, v1);
+	BOOST_REQUIRE_EQUAL(js, v2);
 }
 
 BOOST_AUTO_TEST_CASE(test_database_update)
