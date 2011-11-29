@@ -104,20 +104,6 @@ std::pair<json_value, json_value>
 	return std::make_pair(std::move(sanitized), std::move(special));
 }
 
-/*
-leveldb::batch_ptr_t Database::make_batch()
-{
-	return batch_ptr_t(new WriteBatch());
-}
-
-void Database::commit_batch(leveldb::batch_ptr_t batch, bool sync)
-{
-	WriteOptions wo;
-	wo.sync = sync;
-	parent_->check(parent_->keystore_->Write(wo, batch.get()));
-}
-*/
-
 bool Database::get_tip(storage_t *ifc,
 					   const jstring_t &path_base, json_value &res)
 {
