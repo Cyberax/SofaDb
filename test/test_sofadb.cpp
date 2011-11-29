@@ -61,6 +61,12 @@ BOOST_AUTO_TEST_CASE(test_database_put)
 
 	BOOST_REQUIRE_EQUAL(js, v1);
 	BOOST_REQUIRE_EQUAL(js, v2);
+
+	for(int f=0;f<100000;++f)
+	{
+		json_value v3; revision_t r3;
+		ptr->get(stg.get(), id, &old, &v3, &r3);
+	}
 }
 
 BOOST_AUTO_TEST_CASE(test_database_update)
