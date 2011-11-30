@@ -262,8 +262,7 @@ json_value sofadb::string_to_json(const jstring_t &str)
 
 json_value sofadb::json_from_stream(std::istream &val)
 {
-	char buf[8000];
-	StdStreamReadStream istr(val, buf, 8000);
+	StdStreamReadStream istr(val);
 	return parse_from_stream(istr);
 }
 
@@ -323,7 +322,7 @@ void sofadb::json_to_string(jstring_t &append_to,
 							const json_value &val, bool pretty)
 {
 	char buf[8192];
-	MemoryPoolAllocator<> alloc(buf, 16384);
+	MemoryPoolAllocator<> alloc(buf, 8192);
 	StringWriteStream stream(append_to);
 	Writer<StringWriteStream> writer(stream, &alloc);
 	rapid_json_printer vis(writer);

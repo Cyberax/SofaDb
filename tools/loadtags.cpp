@@ -33,20 +33,26 @@ int main(int argc, char **argv)
 //	for(int f=0;f<20000;++f)
 //		ptr->put(stg.get(), "test"+int_to_string(f),
 //			 revision_num_t::empty_revision, json_value(), val);
+//	return 0;
+//	for(int f=0;f<1000;++f)
+//	{
+//		json_from_stream(stream);
+//		char ch=stream.get();
+//	}
+//	return 0;
 
 	while(true)
 	{
 		json_value val=json_from_stream(stream);
 		ptr->put(stg.get(), val["metadata"]["track_id"].as_str(),
 				 revision_num_t::empty_revision, json_value(), val);
-		//std::cout << val["metadata"]["track_id"] << std::endl;
 
 		char ch=stream.get();
 		if (ch == ']')
 			break;
 		if (stream.eof() || ch!=',')
 		{
-			std::cerr << "Unexpected char" << ch << std::endl;
+			std::cerr << "Unexpected char " << ch << std::endl;
 			return 2;
 		}
 	}
