@@ -38,14 +38,42 @@ namespace utils {
 		typedef char Ch;	//!< Character type. Only support char.
 		StdStreamReadStream(std::istream &str) : str_(str)
 		{
+			rdbuf_ = str.rdbuf();
 		}
 		~StdStreamReadStream()
 		{
 		}
 
-		char Peek() const { return str_.peek(); }
-		char Take() { return str_.get(); }
-		size_t Tell() const { return str_.tellg(); }
+		const static int eof = std::char_traits<char>::eof();
+
+		char Peek() const
+		{
+			int res=rdbuf_->sgetc();
+			if (res!=eof)
+				return res;
+			throw std::bad_exception();
+		}
+		char Take()
+		{
+			int res=rdbuf_->sgetc();
+			if (res==eof)
+				throw std::bad_exception();
+
+			int bumped=rdbuf_->sbumpc();
+			if (bumped==eof)
+				read_more();
+			return res;
+		}
+
+		void read_more()
+		{
+			str_.sync();
+		}
+
+		size_t Tell() const
+		{
+			return str_.tellg();
+		}
 
 		// Not implemented
 		void Put(char c) { RAPIDJSON_ASSERT(false); }
@@ -55,6 +83,7 @@ namespace utils {
 
 	private:
 		std::istream &str_;
+		std::basic_streambuf<char> *rdbuf_;
 	};
 
 	class BufReadStream
