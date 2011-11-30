@@ -28,6 +28,15 @@ std::string sofadb::int_to_string(int64_t in)
 	return std::string(buffer, ptr-buffer);
 }
 
+void sofadb::append_int_to_string(int64_t in, jstring_t &out)
+{
+	char buffer[64];
+	char *ptr = buffer;
+	karma::generate(ptr, int_, in);
+	*ptr = '\0';
+	out.append(buffer, ptr);
+}
+
 bool sofadb::operator < (const bignum_t &l, const bignum_t &r)
 {
 	const bool lneg = l.digits_.at(0) == '-';

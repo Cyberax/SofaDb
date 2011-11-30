@@ -12,10 +12,20 @@ using namespace leveldb;
 
 const revision_num_t revision_num_t::empty_revision;
 
+revision_num_t::revision_num_t(uint32_t num, jstring_t &&uniq) :
+	num_(num), uniq_(std::move(uniq))
+{
+	stringed_.reserve(uniq_.size()+16);
+	append_int_to_string(num, stringed_);
+	stringed_.push_back('-');
+	stringed_.append(uniq_);
+}
+
 revision_num_t::revision_num_t(uint32_t num, const jstring_t &uniq) :
 	num_(num), uniq_(uniq)
 {
-	stringed_.append(int_to_string(num));
+	stringed_.reserve(uniq_.size()+16);
+	append_int_to_string(num, stringed_);
 	stringed_.push_back('-');
 	stringed_.append(uniq);
 }

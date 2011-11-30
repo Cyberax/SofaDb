@@ -140,7 +140,7 @@ BOOST_AUTO_TEST_CASE(test_bench)
 
 	revision_num_t old;
 	storage_ptr_t stg=engine.create_storage(false);
-	for(int f=0;f<100000; ++f)
+	for(int f=0;f<2000; ++f)
 	{
 		revision_t rev=ptr->put(stg.get(),
 								id+int_to_string(f),

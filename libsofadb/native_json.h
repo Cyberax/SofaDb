@@ -19,6 +19,7 @@ namespace sofadb {
 	typedef std::vector<json_value> sublist_t;
 
 	SOFADB_PUBLIC std::string int_to_string(int64_t in);
+	SOFADB_PUBLIC void append_int_to_string(int64_t in, jstring_t &out);
 
 	struct bignum_t
 	{

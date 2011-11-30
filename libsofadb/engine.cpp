@@ -58,9 +58,9 @@ DbEngine::DbEngine(const jstring_t &filename, bool temporary)
 	this->temporary_ = temporary;
 
 	Options opts;
-	opts.block_size=1024;
 	opts.create_if_missing = true;
 	opts.paranoid_checks=0;
+	opts.block_size=1024;
 	opts.compression=kSnappyCompression;
 	opts.write_buffer_size = 24*1024*1024;
 

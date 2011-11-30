@@ -39,6 +39,7 @@ namespace sofadb {
 		SOFADB_PUBLIC static const revision_num_t empty_revision;
 
 		revision_num_t() : num_() {}
+		SOFADB_PUBLIC revision_num_t(uint32_t num, jstring_t &&uniq);
 		SOFADB_PUBLIC revision_num_t(uint32_t num, const jstring_t &uniq);
 		SOFADB_PUBLIC revision_num_t(const jstring_t &);
 
