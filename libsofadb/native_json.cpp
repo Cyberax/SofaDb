@@ -1,8 +1,9 @@
 #include "native_json.h"
-#include <yajl/yajl_parse.h>
-#include <yajl/yajl_gen.h>
-#include <boost/lexical_cast.hpp>
 #include "errors.h"
+
+#include "native_json_helpers.h"
+#include "rapidjson/writer.h"
+#include "rapidjson/reader.h"
 
 #define BOOST_KARMA_NUMERICS_LOOP_UNROLL 6
 #include <boost/spirit/include/karma.hpp>
@@ -11,6 +12,9 @@ using boost::spirit::karma::int_;
 using boost::spirit::karma::lit;
 
 using namespace sofadb;
+using namespace utils;
+using namespace rapidjson;
+
 static const bignum_t max_int_decimal("9223372036854775807"); //2^63
 static const bignum_t min_int_decimal("-9223372036854775808"); //-(2^63)-1
 const json_value json_value::empty_val;
@@ -141,327 +145,173 @@ bool sofadb::operator < (const json_value &l, const json_value &r)
 	return do_operation<std::less>(l, r);
 }
 
-static void *yajl_malloc_impl(void *ctx, unsigned int sz)
+
+struct rapid_read_handler
 {
-	return malloc(sz);
-}
+	std::vector<json_value*> values_;
+	jstring_t cur_key_;
+	bool first_;
+	rapid_read_handler() : first_(true) {}
 
-static void yajl_free_impl(void *ctx, void * ptr)
-{
-	free(ptr);
-}
-
-static void * yajl_realloc_impl(void *ctx, void * ptr, unsigned int sz)
-{
-	return realloc(ptr, sz);
-}
-
-static yajl_alloc_funcs alloc_funcs = {
-	&yajl_malloc_impl,
-	&yajl_realloc_impl,
-	&yajl_free_impl,
-	0
-};
-
-static yajl_parser_config config = {1, 0};
-
-struct yajl_deleter
-{
-	void operator ()(yajl_handle hndl)
+	json_value* advance(json_value && val)
 	{
-		yajl_free(hndl);
+		json_value &cur_tip = *values_.back();
+		if (!cur_key_.empty())
+		{
+			auto res=cur_tip.get_submap().insert(
+						std::make_pair(std::move(cur_key_),
+									   std::move(val)));
+			cur_key_.clear();
+			return &res.first->second;
+		} else
+		{
+			cur_tip.get_sublist().push_back(std::move(val));
+			return &cur_tip.get_sublist().back();
+		}
+	}
+
+	void Null()
+	{
+		advance(json_value());
+	}
+	void Bool(bool b)
+	{
+		advance(json_value(b));
+	}
+
+	void BigNum(const char *str, size_t length)
+	{
+		std::string digits(str, length);
+		if (digits.find_first_of("eE.")!=jstring_t::npos)
+		{
+			double val=0;
+			if (sscanf(digits.c_str(), "%lf", &val) == EOF)
+				throw std::bad_exception();
+			advance(json_value(val));
+		} else
+		{
+			json_value v(bignum_t(std::move(digits)));
+			advance(v.normalize_int());
+		}
+	}
+
+	void String(const char* str, size_t length, bool copy)
+	{
+		json_value &cur_val = *values_.back();
+		if (cur_key_.empty() && cur_val.type()==submap_d)
+		{
+			cur_key_ = jstring_t(str, length);
+		} else
+		{
+			advance(json_value(jstring_t(str, length)));
+		}
+	}
+
+	void StartObject()
+	{
+		if (first_)
+		{
+			first_ = false;
+			values_.back()->as_submap();
+			return;
+		}
+		json_value *val=advance(json_value(submap_d));
+		values_.push_back(val);
+	}
+	void EndObject(SizeType memberCount)
+	{
+		values_.pop_back();
+	}
+	void StartArray()
+	{
+		if (first_)
+		{
+			first_ = false;
+			values_.back()->as_sublist();
+			return;
+		}
+		json_value *val=advance(json_value(sublist_d));
+		values_.push_back(val);
+	}
+	void EndArray(SizeType elementCount)
+	{
+		values_.pop_back();
 	}
 };
 
-struct json_processor
+template<class Stream> json_value parse_from_stream(Stream &istr)
 {
-	std::vector<json_value*> stack_;
-	result_code_t error_;
-};
+	char alloc_buf[8192];
+	MemoryPoolAllocator<> alloc(alloc_buf, 8192);
+	Reader reader(&alloc);
 
-static json_value* advance_list_with(json_processor *proc, json_value && val)
-{
-	json_value* top=proc->stack_.back();
-	if (top->is_sublist())
-	{
-		top->get_sublist().push_back(std::move(val));
-		return &top->get_sublist().back();
-	}
-	else
-	{
-		(*top) = std::move(val);
-		proc->stack_.pop_back();
-		return top;
-	}
-}
+	json_value res;
+	rapid_read_handler hndl;
+	hndl.values_.push_back(&res);
 
-static int json_null(void * ctx)
-{
-	json_processor *proc = static_cast<json_processor*>(ctx);
-	advance_list_with(proc, json_value());
-	return 1;
-}
+	reader.Parse<0>(istr, hndl);
 
-static int json_boolean(void * ctx, int boolVal)
-{
-	json_processor *proc = static_cast<json_processor*>(ctx);
-	advance_list_with(proc, json_value((bool)boolVal));
-	return 1;
-}
-
-/** A callback which passes the string representation of the number
- *  back to the client.  Will be used for all numbers when present */
-static int json_number(void * ctx, const char * numberVal,
-					unsigned int numberLen)
-{
-	json_processor *proc = static_cast<json_processor*>(ctx);
-	std::string digits((const char*)numberVal, numberLen);
-	if (digits.find_first_of("eE.")!=jstring_t::npos)
-	{
-		double val=0;
-		if (sscanf(digits.c_str(), "%lf", &val) == EOF)
-			return 0;
-		advance_list_with(proc, json_value(val));
-	} else
-	{
-		json_value v(bignum_t(std::move(digits)));
-		advance_list_with(proc, v.normalize_int());
-	}
-	return 1;
-}
-
-/** strings are returned as pointers into the JSON text when,
- * possible, as a result, they are _not_ null padded */
-static int json_string(void * ctx, const unsigned char * stringVal,
-					unsigned int stringLen)
-{
-	json_processor *proc = static_cast<json_processor*>(ctx);
-	advance_list_with(proc, jstring_t((const char*)stringVal, stringLen));
-	return 1;
-}
-
-static int json_start_array(void * ctx)
-{
-	json_processor *proc = static_cast<json_processor*>(ctx);
-	json_value *new_elem=advance_list_with(proc, json_value());
-	new_elem->as_sublist();
-	proc->stack_.push_back(new_elem);
-	return 1;
-}
-
-static int json_end_array(void * ctx)
-{
-	json_processor *proc = static_cast<json_processor*>(ctx);
-	assert(!proc->stack_.empty());
-	proc->stack_.pop_back();
-	return 1;
-}
-
-static int json_start_map(void * ctx)
-{
-	json_processor *proc = static_cast<json_processor*>(ctx);
-	json_value *new_elem=advance_list_with(proc, json_value(submap_d));
-	new_elem->as_submap();
-	proc->stack_.push_back(new_elem);
-	return 1;
-}
-
-static int json_map_key(void * ctx, const unsigned char * key,
-				 unsigned int stringLen)
-{
-	json_processor *proc = static_cast<json_processor*>(ctx);
-	json_value *top = proc->stack_.back();
-	assert(top->is_submap());
-
-	json_value *cur_val=&top->as_submap()[
-			jstring_t((const char*)key, stringLen)];
-	proc->stack_.push_back(cur_val);
-
-	return 1;
-}
-
-static int json_end_map(void * ctx)
-{
-	json_processor *proc = static_cast<json_processor*>(ctx);
-	assert(!proc->stack_.empty());
-	proc->stack_.pop_back();
-	return 1;
-}
-
-static yajl_callbacks json_callbacks = {
-	&json_null,
-	&json_boolean,
-	0, //json_integer
-	0, //yajl_double
-	&json_number,
-	&json_string,
-	&json_start_map,
-	&json_map_key,
-	&json_end_map,
-	&json_start_array,
-	&json_end_array,
-};
-
-static void handle_status(yajl_handle hndl, yajl_status status,
-						  const jstring_t &str)
-{
-	if (status==yajl_status_ok)
-		return;
-
-	unsigned char* err=yajl_get_error(hndl, 1,
-		(const unsigned char*)str.c_str(), str.size());
-	result_code_t res(result_code_t::sError, (const char*)err);
-	yajl_free_error(hndl, err);
-
-	boost::throw_exception(sofa_exception(res));
+	return std::move(res);
 }
 
 json_value sofadb::string_to_json(const jstring_t &str)
 {
-	json_value res;
-	res.as_submap();
-
-	json_processor processor;
-	processor.stack_.push_back(&res);
-
-	boost::shared_ptr<yajl_handle_t> hndl(
-				yajl_alloc(&json_callbacks, &config, &alloc_funcs, &processor),
-				yajl_deleter());
-	yajl_status status=yajl_parse(hndl.get(),
-								  (const unsigned char*)str.c_str(),
-								  str.size());
-	handle_status(hndl.get(), status, str);
-	yajl_status status2=yajl_parse_complete(hndl.get());
-	handle_status(hndl.get(), status2, str);
-
-	//assert(processor.stack_.size());
-	return res;
+	BufReadStream istr((char*)str.data(), str.size());
+	return parse_from_stream(istr);
 }
 
 json_value sofadb::json_from_stream(std::istream &val)
 {
-	json_value res;
-	res.as_submap();
-
-	json_processor processor;
-	processor.stack_.push_back(&res);
-
-	boost::shared_ptr<yajl_handle_t> hndl(
-				yajl_alloc(&json_callbacks, &config, &alloc_funcs, &processor),
-				yajl_deleter());
-
-	val.exceptions(std::ios_base::badbit | std::ios_base::eofbit);
-
-	char buf[1025]={0};
-	while(true)
-	{
-		size_t read=val.rdbuf()->sgetn(buf, 1024);
-		if (val.eof() || val.fail())
-			throw std::bad_exception();
-
-		yajl_status status=yajl_parse(hndl.get(),
-									  (const unsigned char*)buf, read);
-
-		if (status == yajl_status_insufficient_data)
-			continue;
-		if (status == yajl_status_ok)
-		{
-			size_t slack=yajl_get_bytes_consumed(hndl.get());
-			for(int f=slack;f<read;++f)
-				val.rdbuf()->sungetc();
-			break;
-		}
-		handle_status(hndl.get(), status, "");
-	}
-
-	yajl_status status2=yajl_parse_complete(hndl.get());
-	handle_status(hndl.get(), status2, "");
-
-	//assert(processor.stack_.size());
-	return res;
+	char buf[8000];
+	StdStreamReadStream istr(val, buf, 8000);
+	return parse_from_stream(istr);
 }
 
-struct printer_context
+struct rapid_json_printer
 {
-	jstring_t &res_;
-};
-
-struct SOFADB_LOCAL printer_deleter
-{
-	void operator ()(yajl_gen hndl)
-	{
-		yajl_gen_free(hndl);
-	}
-};
-
-static void json_print(void * ctx, const char * str, unsigned int len)
-{
-	printer_context *prn = static_cast<printer_context*>(ctx);
-	prn->res_.append(str, len);
-}
-
-static void check_status(yajl_gen_status st)
-{
-	if (st!=yajl_gen_status_ok)
-		err(result_code_t::sError) << "Unepxected return code "<<
-									  st<<" from the JSON printer";
-}
-
-struct json_printer
-{
-	boost::shared_ptr<yajl_gen_t> ptr_;
+	Writer<StringWriteStream> &writer_;
+	rapid_json_printer(Writer<StringWriteStream> &writer) : writer_(writer) {}
 
 	void operator()()
 	{
-		check_status(yajl_gen_null(ptr_.get()));
+		writer_.Null();
 	}
 	void operator()(bool b)
 	{
-		check_status(yajl_gen_bool(ptr_.get(), b));
+		writer_.Bool(b);
 	}
 	void operator()(int64_t i)
 	{
-		jstring_t stringy=int_to_string(i);
-		check_status(yajl_gen_number(ptr_.get(), stringy.data(),
-									 stringy.size()));
+		writer_.Int64(i);
 	}
 	void operator()(double d)
 	{
-		char buf[64];
-		int ln=sprintf(buf, "%lf", d);
-		check_status(yajl_gen_number(ptr_.get(), buf, ln));
+		writer_.Double(d);
 	}
 	void operator()(const jstring_t &s)
 	{
-		check_status(yajl_gen_string(ptr_.get(),
-									 (const unsigned char*)(s.data()),
-									 s.size()));
+		writer_.String(s.data(), s.length());
 	}
 	void operator()(const bignum_t &b)
 	{
-		check_status(yajl_gen_number(ptr_.get(),
-									 b.digits_.data(),
-									 b.digits_.length()));
+		writer_.BigInt(b.digits_.data(), b.digits_.length());
 	}
 	void operator()(const submap_t &map)
 	{
-		check_status(yajl_gen_map_open(ptr_.get()));
+		writer_.StartObject();
 		for(auto i=map.begin(), iend=map.end();i!=iend;++i)
 		{
-			const jstring_t &k=i->first;
-			check_status(yajl_gen_string(ptr_.get(),
-										 (const unsigned char*)k.data(),
-										 k.size()));
+			writer_.String(i->first.data(), i->first.length());
 			i->second.apply_visitor(*this);
 		}
-		check_status(yajl_gen_map_close(ptr_.get()));
+		writer_.EndObject();
 	}
 	void operator()(const sublist_t &lst)
 	{
-		check_status(yajl_gen_array_open(ptr_.get()));
+		writer_.StartArray();
 		for(auto i = lst.begin(), iend=lst.end(); i!=iend; ++i)
 			i->apply_visitor(*this);
-		check_status(yajl_gen_array_close(ptr_.get()));
+		writer_.EndArray();
 	}
 	void operator()(const graft_t &lst)
 	{
@@ -472,14 +322,11 @@ struct json_printer
 void sofadb::json_to_string(jstring_t &append_to,
 							const json_value &val, bool pretty)
 {
-	printer_context ctx {append_to};
-	yajl_gen_config json_gen_config = {pretty?1:0, " "};
-	auto ptr=boost::shared_ptr<yajl_gen_t>(
-				yajl_gen_alloc2(&json_print, &json_gen_config,
-								&alloc_funcs, &ctx),
-				printer_deleter());
-
-	json_printer p {ptr};
-	val.apply_visitor(p);
-	yajl_gen_clear(ptr.get());
+	char buf[8192];
+	MemoryPoolAllocator<> alloc(buf, 16384);
+	StringWriteStream stream(append_to);
+	Writer<StringWriteStream> writer(stream, &alloc);
+	rapid_json_printer vis(writer);
+	val.apply_visitor(vis);
+	alloc.Clear();
 }

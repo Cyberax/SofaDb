@@ -124,3 +124,26 @@ BOOST_AUTO_TEST_CASE(test_revlog)
 	BOOST_REQUIRE_EQUAL(first.at(1).get_str(), "NotExists");
 	BOOST_REQUIRE_EQUAL(first.at(2).get_bool(), false);
 }
+
+BOOST_AUTO_TEST_CASE(test_bench)
+{
+	jstring_t templ("/tmp/sofa_XXXXXX");
+	if (!mkdtemp(&templ[0]))
+		throw std::bad_exception();
+	DbEngine engine(templ, true);
+
+	database_ptr ptr=engine.create_a_database("test");
+
+	json_value js=string_to_json("{\"Hello\" : \"world\"}");
+
+	std::string id = "Hello";
+
+	revision_num_t old;
+	storage_ptr_t stg=engine.create_storage(false);
+	for(int f=0;f<100000; ++f)
+	{
+		revision_t rev=ptr->put(stg.get(),
+								id+int_to_string(f),
+								revision_num_t(), json_value(), js);
+	}
+}
