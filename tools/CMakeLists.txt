@@ -12,3 +12,5 @@ TARGET_LINK_LIBRARIES(loadtags leveldb pthread libsofadb)
 
 ADD_EXECUTABLE(benchcouch benchcouch.cpp)
 TARGET_LINK_LIBRARIES(benchcouch leveldb pthread libsofadb curl)
+
+ADD_EXECUTABLE(simdfun simdfun.cpp)
