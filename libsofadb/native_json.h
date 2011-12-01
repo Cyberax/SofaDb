@@ -15,7 +15,7 @@ namespace sofadb {
 	class json_value;
 	typedef std::map<jstring_t, json_value> submap_t;
 	//typedef boost::unordered_map<jstring_t, json_value> submap_t;
-	//typedef vector_map<jstring_t, json_value> submap_t;
+	//typedef utils::vector_map<jstring_t, json_value> submap_t;
 	typedef std::vector<json_value> sublist_t;
 
 	SOFADB_PUBLIC std::string int_to_string(int64_t in);

@@ -34,15 +34,16 @@ namespace utils {
 			values_.reserve(sz);
 		}
 
-		void insert(pair_t && pair)
+		pair_t& insert(pair_t && pair)
 		{
 			for(auto iter=begin(), iend=end(); iter!=iend; ++iter)
 				if (iter->first == pair.first)
 				{
 					iter->second = std::move(pair.second);
-					return;
+					return (*iter);
 				}
 			values_.push_back(std::move(pair));
+			return values_.back();
 		}
 		V& operator [] (const K& key)
 		{

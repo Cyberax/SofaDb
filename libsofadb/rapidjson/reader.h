@@ -29,6 +29,7 @@ enum ParseFlag {
 	kParseDefaultFlags = 0,			//!< Default parse flags. Non-destructive parsing. Text strings are decoded into allocated buffer.
 	kParseInsituFlag = 1,			//!< In-situ(destructive) parsing.
 	kParseValidateEncodingFlag = 2,	//!< Validate encoding of JSON strings.
+	kParseIgnoreTrailing = 4, //!< Ignore trailing junk after the root object
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -230,7 +231,7 @@ public:
 			}
 			SkipWhitespace(stream);
 
-			if (stream.Peek() != '\0')
+			if (!(parseFlags & kParseIgnoreTrailing) && stream.Peek() != '\0')
 				RAPIDJSON_PARSE_ERROR("Nothing should follow the root object or array.", stream.Tell());
 		}
 

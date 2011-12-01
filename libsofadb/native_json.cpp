@@ -1,4 +1,5 @@
 #include "native_json.h"
+#include "json_stream.h"
 #include "errors.h"
 
 #include "native_json_helpers.h"
@@ -249,7 +250,8 @@ struct rapid_read_handler
 	}
 };
 
-template<class Stream> json_value parse_from_stream(Stream &istr)
+template<class Stream, unsigned Flags>
+	json_value parse_from_stream(Stream &istr)
 {
 	char alloc_buf[8192];
 	MemoryPoolAllocator<> alloc(alloc_buf, 8192);
@@ -259,7 +261,7 @@ template<class Stream> json_value parse_from_stream(Stream &istr)
 	rapid_read_handler hndl;
 	hndl.values_.push_back(&res);
 
-	reader.Parse<0>(istr, hndl);
+	reader.Parse<Flags>(istr, hndl);
 	if (reader.HasParseError())
 	{
 		size_t offset=reader.GetErrorOffset();
@@ -293,19 +295,19 @@ template<class Stream> json_value parse_from_stream(Stream &istr)
 json_value sofadb::string_to_json(const jstring_t &str)
 {
 	BufReadStream istr((char*)str.data(), str.size());
-	return parse_from_stream(istr);
+	return parse_from_stream<BufReadStream, 0>(istr);
 }
 
 json_value sofadb::json_from_stream(std::istream &val)
 {
 	StdStreamReadStream istr(val);
-	return parse_from_stream(istr);
+	return parse_from_stream<StdStreamReadStream, kParseIgnoreTrailing>(istr);
 }
 
-struct rapid_json_printer
+template<class Writer> struct rapid_json_printer
 {
-	Writer<StringWriteStream> &writer_;
-	rapid_json_printer(Writer<StringWriteStream> &writer) : writer_(writer) {}
+	Writer &writer_;
+	rapid_json_printer(Writer &writer) : writer_(writer) {}
 
 	void operator()()
 	{
@@ -364,13 +366,105 @@ void sofadb::json_to_string(jstring_t &append_to,
 	{
 		PrettyWriter<StringWriteStream> writer(stream, &alloc);
 		writer.SetIndent(' ', 2);
-		rapid_json_printer vis(writer);
+		rapid_json_printer< PrettyWriter<StringWriteStream> > vis(writer);
 		val.apply_visitor(vis);
 	} else
 	{
 		Writer<StringWriteStream> writer(stream, &alloc);
-		rapid_json_printer vis(writer);
+		rapid_json_printer< Writer<StringWriteStream> > vis(writer);
 		val.apply_visitor(vis);
 	}
 	alloc.Clear();
+}
+
+template <class Writer> class str_json_stream : public json_stream
+{
+	jstring_t &str_;
+	Writer &writer_;
+public:
+	str_json_stream(jstring_t &str, Writer &writer) :
+		str_(str), writer_(writer)
+	{
+	}
+
+	virtual ~str_json_stream() {}
+
+	virtual void write_null()
+	{
+		writer_.Null();
+	}
+
+	virtual void write_bool(bool val)
+	{
+		writer_.Bool(val);
+	}
+
+	virtual void write_int(int64_t i)
+	{
+		writer_.Int64(i);
+	}
+
+	virtual void write_double(double d)
+	{
+		writer_.Double(d);
+	}
+
+	virtual void write_string(const char *str, size_t ln)
+	{
+		writer_.String(str, ln);
+	}
+
+	virtual void write_digits(const char *str, size_t ln)
+	{
+		writer_.BigInt(str, ln);
+	}
+
+	virtual void start_map()
+	{
+		writer_.StartObject();
+	}
+
+	virtual void end_map()
+	{
+		writer_.EndObject();
+	}
+
+	virtual void start_list()
+	{
+		writer_.StartArray();
+	}
+
+	virtual void end_list()
+	{
+		writer_.EndArray();
+	}
+
+	virtual void write_json(const json_value &val)
+	{
+		rapid_json_printer< Writer > p(writer_);
+		val.apply_visitor(p);
+	}
+};
+
+std::auto_ptr<json_stream> sofadb::make_stream(jstring_t &append_to,
+											   bool pretty)
+{
+	char buf[8192];
+	MemoryPoolAllocator<> alloc(buf, 8192);
+	StringWriteStream stream(append_to);
+
+	if (pretty)
+	{
+		PrettyWriter<StringWriteStream> writer(stream, &alloc);
+		writer.SetIndent(' ', 2);
+		json_stream *s=new str_json_stream< PrettyWriter<StringWriteStream> >(
+					append_to, writer);
+		return std::auto_ptr<json_stream>(s);
+	} else
+	{
+		Writer<StringWriteStream> writer(stream, &alloc);
+		json_stream *s=new str_json_stream< Writer<StringWriteStream> >(
+					append_to, writer);
+		return std::auto_ptr<json_stream>(s);
+	}
 }

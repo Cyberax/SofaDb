@@ -15,6 +15,7 @@ FILE(GLOB libsofadb_INCLUDES
 	database.h
 	engine.h
 	errors.h
+	json_stream.h
 	native_json.h
 	native_json_helpers.h
 	scope_guard.h

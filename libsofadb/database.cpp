@@ -1,5 +1,6 @@
 #include "database.h"
 #include "storage_interface.h"
+#include "json_stream.h"
 #include <openssl/md5.h>
 #include <time.h>
 #include <boost/lexical_cast.hpp>
@@ -187,21 +188,20 @@ revision_num_t Database::store_data(storage_t *ifc,
 									bool deleted,
 									const json_value &content)
 {
-	//No need to call constructors each time!
-	const static std::string deleted_text = "deleted";
-	const static std::string prev_revid_text = "prev_revid";
-	const static std::string atts_text = "atts";
-	const static std::string data_text = "data";
+	jstring_t body;
+	body.reserve(128);
 
-	json_value serialized(submap_d);
-	serialized.insert(deleted_text, json_value(deleted));
-	serialized.insert(prev_revid_text, prev_rev_.full_string());
-	serialized.insert(atts_text, json_value()); //TODO: attachments
-	serialized.insert(data_text, graft_t(&content));
-
-	jstring_t body=json_to_string(serialized);
-	revision_num_t rev=compute_revision(prev_rev_, body);
+	//Format is [deleted, prev_rev, attachments, content]
+	std::auto_ptr<json_stream> str=make_stream(body, false);
+	str->start_list();
+	str->write_bool(deleted);
+	str->write_string(prev_rev_.full_string());
 	//TODO: attachments
+	str->write_null();
+	str->write_json(content);
+	str->end_list();
+
+	revision_num_t rev=compute_revision(prev_rev_, body);
 
 	//Write the document
 	std::string doc_data_path=doc_data_path_base+rev.full_string();
@@ -275,14 +275,16 @@ bool Database::get(storage_t *ifc,
 	}
 
 	json_value serialized=string_to_json(val);
+	sublist_t &lst = serialized.get_sublist();
+	//Format is [deleted, prev_rev, attachments, content]
 	if (content)
-		*content = std::move(serialized["data"]);
+		*content = std::move(lst.at(3));
 
 	if (rev)
 	{
 		rev->id_ = id;
-		rev->deleted_ = serialized["deleted"].get_bool();
-		rev->previous_rev_ = revision_num_t(serialized["prev_revid"].get_str());
+		rev->deleted_ = lst.at(0).get_bool();
+		rev->previous_rev_ = revision_num_t(lst.at(1).get_str());
 		//serialized["atts"] = json_value(); //TODO: attachments
 		rev->rev_ = num;
 	}
