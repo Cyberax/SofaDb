@@ -44,7 +44,7 @@ namespace utils {
 		{
 		}
 
-		const static int eof = std::char_traits<char>::eof();
+		const static int eof = -1;
 
 		char Peek() const
 		{
@@ -75,6 +75,19 @@ namespace utils {
 			return str_.tellg();
 		}
 
+		std::string GetSubSequence(size_t pos, size_t ln) const
+		{
+			str_.seekg(pos, std::ios_base::beg);
+			if (str_.fail() || str_.eof())
+				return "";
+			std::string res;
+			res.resize(ln);
+			str_.read(&res[0], ln);
+			if (str_.eof()) //Got EOF
+				res.resize(str_.gcount());
+			return res;
+		}
+
 		// Not implemented
 		void Put(char c) { RAPIDJSON_ASSERT(false); }
 		void Flush() { RAPIDJSON_ASSERT(false); }
@@ -101,6 +114,16 @@ namespace utils {
 		char Peek() const { return *current_; }
 		char Take() { char c = *current_; Read(); return c; }
 		size_t Tell() const { return (current_ - buffer_); }
+
+		std::string GetSubSequence(size_t pos, size_t ln) const
+		{
+			size_t sz=(bufferLast_-buffer_);
+			if (pos>=sz)
+				return "";
+			if (ln >= sz-pos)
+				ln = sz-pos;
+			return jstring_t(buffer_+pos, ln);
+		}
 
 		// Not implemented
 		void Put(char c) { RAPIDJSON_ASSERT(false); }

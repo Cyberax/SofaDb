@@ -3,6 +3,7 @@
 
 #include "native_json_helpers.h"
 #include "rapidjson/writer.h"
+#include "rapidjson/prettywriter.h"
 #include "rapidjson/reader.h"
 
 #define BOOST_KARMA_NUMERICS_LOOP_UNROLL 6
@@ -259,6 +260,32 @@ template<class Stream> json_value parse_from_stream(Stream &istr)
 	hndl.values_.push_back(&res);
 
 	reader.Parse<0>(istr, hndl);
+	if (reader.HasParseError())
+	{
+		size_t offset=reader.GetErrorOffset();
+		if (offset>25)
+			offset-=25;
+
+		jstring_t str=istr.GetSubSequence(offset,40);
+		if (str.empty())
+		{
+			err(result_code_t::sWrongRevision)
+					<< reader.GetParseError() << " "
+					<< "(unknown location)";
+		}
+
+		//Replace all whitespace-y symbols with spaces
+		for(size_t f=0,fend=str.size();f<fend;++f)
+			if (str[f]=='\t' || str[f]=='\n' || str[f]=='\r')
+				str[f]=' ';
+		jstring_t pos_marker;
+		pos_marker.append(reader.GetErrorOffset()-offset , ' ');
+
+		err(result_code_t::sWrongRevision)
+				<< reader.GetParseError() << std::endl
+				<< "Near: " << str << std::endl
+				<< "      " << pos_marker << "^(here)";
+	}
 
 	return std::move(res);
 }
@@ -333,8 +360,17 @@ void sofadb::json_to_string(jstring_t &append_to,
 	char buf[8192];
 	MemoryPoolAllocator<> alloc(buf, 8192);
 	StringWriteStream stream(append_to);
-	Writer<StringWriteStream> writer(stream, &alloc);
-	rapid_json_printer vis(writer);
-	val.apply_visitor(vis);
+	if (pretty)
+	{
+		PrettyWriter<StringWriteStream> writer(stream, &alloc);
+		writer.SetIndent(' ', 2);
+		rapid_json_printer vis(writer);
+		val.apply_visitor(vis);
+	} else
+	{
+		Writer<StringWriteStream> writer(stream, &alloc);
+		rapid_json_printer vis(writer);
+		val.apply_visitor(vis);
+	}
 	alloc.Clear();
 }

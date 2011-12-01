@@ -1,5 +1,6 @@
 #include <boost/test/unit_test.hpp>
 #include "native_json.h"
+#include "errors.h"
 #include <boost/lexical_cast.hpp>
 
 using namespace sofadb;
@@ -107,5 +108,30 @@ BOOST_AUTO_TEST_CASE(test_normalization)
 	json_value l1(bignum_t("834181234214782364897264982673496739836741789"));
 	json_value r1(int64_t(1234));
 	BOOST_REQUIRE_NE(l1, r1);
+}
 
+BOOST_AUTO_TEST_CASE(test_json_bugz)
+{
+	try {
+		json_value js=string_to_json("{"
+							 "\"testpaddddddddddddd\": null,"
+							 "\"sub\" : \"a\" : 1234214, "
+							 "\"Hello\": \"world\""
+							 "}");
+		BOOST_FAIL("No exception");
+	} catch(const sofa_exception &ex)
+	{
+		BOOST_REQUIRE_EQUAL(ex.err().code(), result_code_t::sWrongRevision);
+	}
+
+	try {
+		json_value js=string_to_json(""
+							 "\"testpaddddddddddddd\": null,"
+							 "\"Hello\": \"world\""
+							 "}");
+		BOOST_FAIL("No exception");
+	} catch(const sofa_exception &ex)
+	{
+		BOOST_REQUIRE_EQUAL(ex.err().code(), result_code_t::sWrongRevision);
+	}
 }
