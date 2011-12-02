@@ -19,3 +19,9 @@ bool resolver::is_left_rev_winning(const revision_num_t &left,
 
 	return left.uniq() < right.uniq();
 }
+
+void merge(const revision_num_t &rev_num_,
+		   const sublist_t &current_conflicts)
+{
+
+}
