@@ -1,5 +1,6 @@
 #include "conflict.h"
-#include <boost/ptr_container/ptr_set.hpp>
+#include <set>
+#include <functional>
 
 using namespace sofadb;
 
