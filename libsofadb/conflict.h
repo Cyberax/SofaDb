@@ -9,16 +9,15 @@ namespace sofadb {
 
 	class resolver
 	{
-		json_value rev_log_;
+		json_value *rev_log_;
 	public:
-		resolver(rev_log_ &&rev_log) :
-			rev_log_(std::move(rev_log)) {}
+		resolver(json_value *rev_log) : rev_log_(rev_log) {}
 
 		static bool is_left_rev_winning(
 			const revision_num_t &left, const revision_num_t &right);
 
-		void merge(const revision_num_t &rev_num_,
-				   const sublist_t &current_conflicts);
+		void merge(const revision_num_t &new_rev,
+				   const sublist_t &new_rev_conflicts);
 	};
 };
 

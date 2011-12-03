@@ -245,6 +245,16 @@ namespace sofadb {
 			return revision_num_t(triple.at(0).get_int(),
 								  triple.at(1).get_str());
 		}
+
+		void add_conflict(const jstring_t &rev)
+		{
+			log_.as_sublist().at(0).get_sublist().push_back(rev);
+		}
+
+		sublist_t& get_conflicts()
+		{
+			return log_.as_sublist().at(0).get_sublist();
+		}
 	};
 }; //namespace sofadb
 
