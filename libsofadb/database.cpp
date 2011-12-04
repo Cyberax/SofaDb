@@ -131,38 +131,36 @@ bool Database::get_revlog(storage_t *ifc,
 	}
 }
 
-revision_t Database::put(storage_t *ifc,
-						 const jstring_t &id, const revision_num_t& old_rev,
-						 const json_value &meta, const json_value &content)
+update_status_e Database::put_or_merge(storage_t *ifc,
+				   const jstring_t &id, const revision_num_t& old_rev,
+				   const json_value &content,
+				   bool do_merge, json_value *rev_log_out_ptr)
 {
 	check_closed();
-
 	//Ok. That gets interesting!
 	//Let's roll!
-	revision_t rev;
+	json_value rev_log_local;
+	json_value &rev_log = rev_log_out_ptr? *rev_log_out_ptr : rev_log_local;
+	rev_log.as_sublist();
 
 	//Check if there is an old revision with this ID
 	const std::string doc_rev_path_base=make_path(id);
 
-	json_value rev_log;
 	bool has_prev = get_revlog(ifc, doc_rev_path_base, rev_log);
 	if (has_prev)
 	{
 		revision_num_t prev_rev=revlog_wrapper(rev_log).top_rev_id();
-		if (old_rev.empty() || prev_rev != old_rev)
-			return std::move(rev); //Conflict!
+		if (prev_rev != old_rev)
+		{
+			//Conflict!
+			if (!do_merge)
+				return UPDATE_CONFLICT;
+		}
 	}
 	//Update or create a document!
-
-	rev.id_ = id;
-	rev.deleted_ = false;
-	if (!old_rev.empty())
-		rev.previous_rev_ = old_rev;
-	else
-		rev.previous_rev_ = revision_num_t::empty_revision;
-	rev.rev_ = store_data(ifc, doc_rev_path_base, rev.previous_rev_,
+	revision_num_t rev = store_data(ifc, doc_rev_path_base, old_rev,
 						  false, content);
-	assert(!rev.rev_.empty());
+	assert(!rev.empty());
 
 	//Format the revlog
 	if (!old_rev.empty() && !has_prev)
@@ -170,16 +168,17 @@ revision_t Database::put(storage_t *ifc,
 		//We have a prior but missing revision
 		revlog_wrapper(rev_log).add_rev_info(old_rev, false);
 	}
-	revlog_wrapper(rev_log).add_rev_info(rev.rev_, true);
+	revlog_wrapper(rev_log).add_rev_info(rev, true);
 
 	//Write the revlog info
 	ifc->put(doc_rev_path_base, json_to_string(rev_log));
 
 	VLOG_MACRO(1) << "Created document " << id << " in the database "
-				  << name_ << " revid=" << rev.rev_ << " at "
+				  << name_ << " revid=" << rev << " at "
 				  << doc_rev_path_base << "..." << std::endl;
 
-	return std::move(rev);
+	//return std::move(rev);
+	return UPDATE_OK;
 }
 
 revision_num_t Database::store_data(storage_t *ifc,
