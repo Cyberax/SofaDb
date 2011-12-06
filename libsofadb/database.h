@@ -91,9 +91,6 @@ namespace sofadb {
 		return str << r.full_string();
 	}
 
-	enum update_status_e { UPDATE_OK, UPDATE_CONFLICT,
-						UPDATE_CONFLICT_WON, UPDATE_CONFLICT_LOST };
-
 	/**
 		CouchDB keeps documents in the following format:
 		[Deleted, OldStart, OldRev, Body, Atts2] where
@@ -124,9 +121,6 @@ namespace sofadb {
 	  */
 	struct revision_t
 	{
-		UTILITY_MOVE_DEFAULT_MEMBERS(
-			revision_t, (id_)(deleted_)(previous_rev_)(atts_)(rev_))
-
 		jstring_t id_; //The immutable document ID
 		bool deleted_;
 
@@ -139,6 +133,23 @@ namespace sofadb {
 
 		bool empty() const { return id_.empty(); }
 
+		revision_t() : deleted_() {}
+		UTILITY_MOVE_DEFAULT_MEMBERS(
+			revision_t, (id_)(deleted_)(previous_rev_)(atts_)(rev_))
+	};
+
+	enum update_status_e { UPDATE_OK, UPDATE_CONFLICT,
+						UPDATE_CONFLICT_WON, UPDATE_CONFLICT_LOST };
+
+	struct put_result_t
+	{
+		update_status_e code_;
+		revision_num_t assigned_rev_;
+		json_value rev_log_;
+
+		UTILITY_MOVE_DEFAULT_MEMBERS(
+			put_result_t, (code_)(assigned_rev_)(rev_log_))
+		put_result_t() : code_() {}
 	};
 
 	/**
@@ -182,10 +193,9 @@ namespace sofadb {
 							   revision_t *rev=0,
 							   json_value *rev_log=0);
 
-		SOFADB_PUBLIC update_status_e put_or_merge(storage_t *ifc,
+		SOFADB_PUBLIC put_result_t put(storage_t *ifc,
 			const jstring_t &id, const revision_num_t& old_rev,
-			const json_value &content,
-			bool do_merge, json_value *rev_log_out_ptr);
+			const json_value &content, bool do_merge = false);
 
 		/*
 		SOFADB_PUBLIC revision_t remove(

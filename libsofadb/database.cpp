@@ -131,54 +131,54 @@ bool Database::get_revlog(storage_t *ifc,
 	}
 }
 
-update_status_e Database::put_or_merge(storage_t *ifc,
+put_result_t Database::put(storage_t *ifc,
 				   const jstring_t &id, const revision_num_t& old_rev,
-				   const json_value &content,
-				   bool do_merge, json_value *rev_log_out_ptr)
+				   const json_value &content, bool do_merge)
 {
 	check_closed();
 	//Ok. That gets interesting!
 	//Let's roll!
-	json_value rev_log_local;
-	json_value &rev_log = rev_log_out_ptr? *rev_log_out_ptr : rev_log_local;
-	rev_log.as_sublist();
+	put_result_t put_res;
 
 	//Check if there is an old revision with this ID
 	const std::string doc_rev_path_base=make_path(id);
 
-	bool has_prev = get_revlog(ifc, doc_rev_path_base, rev_log);
+	bool has_prev = get_revlog(ifc, doc_rev_path_base, put_res.rev_log_);
 	if (has_prev)
 	{
-		revision_num_t prev_rev=revlog_wrapper(rev_log).top_rev_id();
+		revision_num_t prev_rev=revlog_wrapper(put_res.rev_log_).top_rev_id();
 		if (prev_rev != old_rev)
 		{
 			//Conflict!
 			if (!do_merge)
-				return UPDATE_CONFLICT;
+			{
+				put_res.code_ = UPDATE_CONFLICT;
+				return std::move(put_res);
+			}
 		}
 	}
 	//Update or create a document!
-	revision_num_t rev = store_data(ifc, doc_rev_path_base, old_rev,
+	put_res.assigned_rev_ = store_data(ifc, doc_rev_path_base, old_rev,
 						  false, content);
-	assert(!rev.empty());
+	assert(!put_res.assigned_rev_.empty());
 
 	//Format the revlog
+	revlog_wrapper w(put_res.rev_log_);
 	if (!old_rev.empty() && !has_prev)
 	{
 		//We have a prior but missing revision
-		revlog_wrapper(rev_log).add_rev_info(old_rev, false);
+		w.add_rev_info(old_rev, false);
 	}
-	revlog_wrapper(rev_log).add_rev_info(rev, true);
+	w.add_rev_info(put_res.assigned_rev_, true);
 
 	//Write the revlog info
-	ifc->put(doc_rev_path_base, json_to_string(rev_log));
+	ifc->put(doc_rev_path_base, json_to_string(put_res.rev_log_));
 
 	VLOG_MACRO(1) << "Created document " << id << " in the database "
-				  << name_ << " revid=" << rev << " at "
+				  << name_ << " revid=" << put_res.assigned_rev_ << " at "
 				  << doc_rev_path_base << "..." << std::endl;
 
-	//return std::move(rev);
-	return UPDATE_OK;
+	return std::move(put_res);
 }
 
 revision_num_t Database::store_data(storage_t *ifc,
