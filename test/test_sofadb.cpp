@@ -45,8 +45,7 @@ BOOST_AUTO_TEST_CASE(test_database_put)
 	//storage_ptr_t store = engine.create_batch_storage();
 	for(int f=0;f<10; ++f)
 	{
-		revision_t rev=ptr->put(stg.get(), id, old, json_value(), js);
-		old = std::move(rev.rev_);
+		old=ptr->put(stg.get(), id, old, js).assigned_rev_;
 	}
 	//engine.commit_batch(store, false);
 	//ptr->commit_batch(batch, false);
@@ -78,19 +77,19 @@ BOOST_AUTO_TEST_CASE(test_database_update)
 	json_value js=string_to_json("{\"Hello\" : \"world\"}");
 	json_value js2=string_to_json("{\"Hello the second\" : \"world\"}");
 
-	revision_t rev=ptr->put(stg.get(), "Hello", revision_num_t(),
-							  json_value(submap_d), js);
+	revision_num_t rev=ptr->put(stg.get(), "Hello",
+								revision_num_t(),js).assigned_rev_;
 
-	revision_t rev2=ptr->put(stg.get(), "Hello", revision_num_t(),
-							   json_value(submap_d), js2);
+	revision_num_t rev2=ptr->put(stg.get(), "Hello",
+								 revision_num_t(), js2).assigned_rev_;
 	BOOST_REQUIRE(rev2.empty());
 
-	revision_t rev3=ptr->put(stg.get(), "Hello", revision_num_t("2-Nope"),
-							   json_value(submap_d), js2);
+	revision_num_t rev3=ptr->put(stg.get(), "Hello",
+							 revision_num_t("2-Nope"), js2).assigned_rev_;
 	BOOST_REQUIRE(rev3.empty());
 
-	revision_t rev4=ptr->put(stg.get(), "Hello", rev.rev_,
-							   json_value(submap_d), js2);
+	revision_num_t rev4=ptr->put(stg.get(),
+								 "Hello", rev, js2).assigned_rev_;
 	BOOST_REQUIRE(!rev4.empty());
 }
 
@@ -110,8 +109,7 @@ BOOST_AUTO_TEST_CASE(test_revlog)
 	//storage_ptr_t store = engine.create_batch_storage();
 	for(int f=0;f<10; ++f)
 	{
-		revision_t rev=ptr->put(stg.get(), id, old, json_value(), js);
-		old = std::move(rev.rev_);
+		old = ptr->put(stg.get(), id, old, js).assigned_rev_;
 	}
 
 	json_value log;
@@ -140,10 +138,8 @@ BOOST_AUTO_TEST_CASE(test_bench)
 
 	revision_num_t old;
 	storage_ptr_t stg=engine.create_storage(false);
-	for(int f=0;f<200000; ++f)
+	for(int f=0;f<200; ++f)
 	{
-		revision_t rev=ptr->put(stg.get(),
-								id+int_to_string(f),
-								revision_num_t(), json_value(), js);
+		ptr->put(stg.get(), id+int_to_string(f), revision_num_t(), js);
 	}
 }

@@ -45,7 +45,7 @@ int main(int argc, char **argv)
 	{
 		json_value val=json_from_stream(stream);
 		ptr->put(stg.get(), val["metadata"]["track_id"].as_str(),
-				 revision_num_t::empty_revision, json_value(), val);
+				 revision_num_t::empty_revision, val, false);
 
 		char ch=stream.get();
 		if (ch == ']')

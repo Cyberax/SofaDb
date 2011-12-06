@@ -3,6 +3,7 @@
 
 #include "common.h"
 #include "native_json.h"
+#include "boilerplate.hpp"
 
 #define SD_SYSTEM_DB "_sys"
 #define SD_DATA_DB "_data"
@@ -131,6 +132,24 @@ namespace sofadb {
 		revision_num_t rev_;
 
 		bool empty() const { return id_.empty(); }
+
+		revision_t() : deleted_() {}
+		UTILITY_MOVE_DEFAULT_MEMBERS(
+			revision_t, (id_)(deleted_)(previous_rev_)(atts_)(rev_))
+	};
+
+	enum update_status_e { UPDATE_OK, UPDATE_CONFLICT,
+						UPDATE_CONFLICT_WON, UPDATE_CONFLICT_LOST };
+
+	struct put_result_t
+	{
+		update_status_e code_;
+		revision_num_t assigned_rev_;
+		json_value rev_log_;
+
+		UTILITY_MOVE_DEFAULT_MEMBERS(
+			put_result_t, (code_)(assigned_rev_)(rev_log_))
+		put_result_t() : code_() {}
 	};
 
 	/**
@@ -173,9 +192,10 @@ namespace sofadb {
 							   json_value *content,
 							   revision_t *rev=0,
 							   json_value *rev_log=0);
-		SOFADB_PUBLIC revision_t put(storage_t *ifc,
+
+		SOFADB_PUBLIC put_result_t put(storage_t *ifc,
 			const jstring_t &id, const revision_num_t& old_rev,
-			const json_value &meta, const json_value &content);
+			const json_value &content, bool do_merge = false);
 
 		/*
 		SOFADB_PUBLIC revision_t remove(
@@ -207,11 +227,11 @@ namespace sofadb {
 
 	/**
 		The structure of revlog is:
-		[ [[1, "conflicted"], [2, "conflicted"], ...],
+		[ ["1-conflicted-id", "2-conflicted-id", ...],
 		  [0, "id", true], ["1", "id2", true],..
 		]
 
-		Where "confliced" tuples are lists of conflicted revisions and
+		Where "confliced" strings are lists of conflicted revisions and
 		[num, "id", available] triples describe the stored revisions
 	  */
 	struct revlog_wrapper
