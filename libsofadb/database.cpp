@@ -181,6 +181,11 @@ put_result_t Database::put(storage_t *ifc,
 	return std::move(put_res);
 }
 
+class optionaly_pooled_alloc
+{
+
+};
+
 revision_num_t Database::store_data(storage_t *ifc,
 									const jstring_t &doc_data_path_base,
 									const revision_num_t &prev_rev_,
