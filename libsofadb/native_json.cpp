@@ -380,10 +380,11 @@ void sofadb::json_to_string(jstring_t &append_to,
 template <class Writer> class str_json_stream : public json_stream
 {
 	jstring_t &str_;
-	Writer &writer_;
+	StringWriteStream write_stream_;
+	Writer writer_;
 public:
-	str_json_stream(jstring_t &str, Writer &writer) :
-		str_(str), writer_(writer)
+	str_json_stream(jstring_t &str) :
+		str_(str), write_stream_(str), writer_(write_stream_)
 	{
 	}
 
@@ -449,20 +450,15 @@ public:
 std::auto_ptr<json_stream> sofadb::make_stream(jstring_t &append_to,
 											   bool pretty)
 {
-	StringWriteStream stream(append_to);
-
 	if (pretty)
 	{
-		PrettyWriter<StringWriteStream> writer(stream);
-		writer.SetIndent(' ', 2);
 		json_stream *s=new str_json_stream< PrettyWriter<StringWriteStream> >(
-					append_to, writer);
+					append_to);
 		return std::auto_ptr<json_stream>(s);
 	} else
 	{
-		Writer<StringWriteStream> writer(stream);
 		json_stream *s=new str_json_stream< Writer<StringWriteStream> >(
-					append_to, writer);
+					append_to);
 		return std::auto_ptr<json_stream>(s);
 	}
 }
