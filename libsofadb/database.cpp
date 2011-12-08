@@ -6,6 +6,7 @@
 #include <boost/lexical_cast.hpp>
 #include "scope_guard.h"
 #include "errors.h"
+#include "conflict.h"
 
 #include <iostream>
 using namespace sofadb;
@@ -144,10 +145,12 @@ put_result_t Database::put(storage_t *ifc,
 	const std::string doc_rev_path_base=make_path(id);
 
 	bool has_prev = get_revlog(ifc, doc_rev_path_base, put_res.rev_log_);
+	bool need_to_merge = false;
 	if (has_prev)
 	{
-		revision_num_t prev_rev=revlog_wrapper(put_res.rev_log_).top_rev_id();
-		if (prev_rev != old_rev)
+		sublist_t& quad = revlog_wrapper(put_res.rev_log_).top_quad();
+		if (old_rev.num()!=quad.at(0).get_int() ||
+				old_rev.uniq()!=quad.at(1).get_str())
 		{
 			//Conflict!
 			if (!do_merge)
@@ -155,6 +158,7 @@ put_result_t Database::put(storage_t *ifc,
 				put_res.code_ = UPDATE_CONFLICT;
 				return std::move(put_res);
 			}
+			need_to_merge = true;
 		}
 	}
 	//Update or create a document!
@@ -163,13 +167,22 @@ put_result_t Database::put(storage_t *ifc,
 	assert(!put_res.assigned_rev_.empty());
 
 	//Format the revlog
-	revlog_wrapper w(put_res.rev_log_);
-	if (!old_rev.empty() && !has_prev)
+	if (!need_to_merge)
 	{
-		//We have a prior but missing revision
-		w.add_rev_info(old_rev, false);
+		revlog_wrapper w(put_res.rev_log_);
+		if (!old_rev.empty() && !has_prev)
+		{
+			//We have a prior but missing revision
+			w.add_rev_info(old_rev, false, false);
+		}
+		w.add_rev_info(put_res.assigned_rev_, true, false);
+	} else
+	{
+		sublist_t& quad = revlog_wrapper(put_res.rev_log_).top_quad();
+		//Merge it!
+		resolver reslv(&put_res.rev_log_);
+		reslv.merge(put_res.assigned_rev_, sublist_t());
 	}
-	w.add_rev_info(put_res.assigned_rev_, true);
 
 	//Write the revlog info
 	ifc->put(doc_rev_path_base, json_to_string(put_res.rev_log_));

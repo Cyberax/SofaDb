@@ -84,7 +84,7 @@ void resolver::merge(const revision_num_t &new_rev,
 	{
 		//The new revision is winning, make the current revision
 		//to be conflicting.
-		wrapper.add_rev_info(new_rev, true);
+		wrapper.add_rev_info(new_rev, true, false);
 
 		//The new version can't be amongst the conflicts!
 		assert(visited.find(new_rev_str)==visited.end());

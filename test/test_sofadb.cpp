@@ -117,7 +117,7 @@ BOOST_AUTO_TEST_CASE(test_revlog)
 
 	BOOST_REQUIRE_EQUAL(revlog_wrapper(log).top_rev_id(), old);
 
-	const sublist_t &first=log.as_sublist().at(1).get_sublist();
+	const sublist_t &first=log.as_sublist().at(2).get_sublist();
 	BOOST_REQUIRE_EQUAL(first.at(0).get_int(), 213);
 	BOOST_REQUIRE_EQUAL(first.at(1).get_str(), "NotExists");
 	BOOST_REQUIRE_EQUAL(first.at(2).get_bool(), false);
