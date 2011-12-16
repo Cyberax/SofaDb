@@ -56,4 +56,9 @@ typedef std::string jstring_t;
 	}
 #endif
 
+namespace sofadb {
+	SOFADB_PUBLIC std::string int_to_string(int64_t in);
+	SOFADB_PUBLIC void append_int_to_string(int64_t in, jstring_t &out);
+};
+
 #endif // COMMON_H
