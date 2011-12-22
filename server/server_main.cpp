@@ -28,6 +28,39 @@ struct engine_registry
 };
 typedef boost::shared_ptr<engine_registry> registry_ptr;
 
+void do_document_get(database_ptr db, engine_ptr engine, socket_ptr_t sock)
+{
+	uint32_t params = read_uint32(sock);
+	std::string id = read_str(sock);
+	if (id.empty())
+		err(result_code_t::sError) << "Empty document id";
+	std::string rev = read_str(sock);
+	revision_num_t rnum(rev);
+
+	json_value content;
+	revision_t rev_res;
+	json_value rev_log;
+
+	bool res=db->get(engine->create_storage(false).get(), id,
+					 rnum.empty() ? 0 : &rnum,
+					 params & GET_BODY ? &content : 0,
+					 params & GET_REVINFO ? &rev_res : 0,
+					 params & GET_REVLOG ? &rev_log : 0);
+	if (!res)
+	{
+		write_uint32(sock, 0);
+	} else
+	{
+		write_uint32(sock, 1);
+		if (params & GET_BODY)
+			write_str(sock, json_to_string(content));
+		if (params & GET_REVINFO)
+			write_str(sock, rev_res.rev_.full_string());
+		if (params & GET_REVLOG)
+			write_str(sock, json_to_string(rev_log));
+	}
+}
+
 void session(registry_ptr registry, socket_ptr_t sock)
 {
 	try
@@ -58,7 +91,7 @@ void session(registry_ptr registry, socket_ptr_t sock)
 						last_db : engine->create_a_database(dbname);
 			if (command=="GET")
 			{
-
+				do_document_get(db, engine, sock);
 			} else if (command == "PUT")
 			{
 			} else
