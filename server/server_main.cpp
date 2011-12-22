@@ -61,6 +61,21 @@ void do_document_get(database_ptr db, engine_ptr engine, socket_ptr_t sock)
 	}
 }
 
+void do_command_put(database_ptr db, engine_ptr engine, socket_ptr_t sock)
+{
+	std::string id = read_str(sock);
+	if (id.empty())
+		err(result_code_t::sError) << "Empty document id";
+	std::string rev = read_str(sock);
+	std::string doc = read_str(sock);
+
+	put_result_t res=db->put(engine->create_storage(false).get(),
+							 id, revision_num_t(rev), string_to_json(doc));
+
+	write_uint32(sock, res.code_);
+	write_str(sock, res.assigned_rev_.full_string());
+}
+
 void session(registry_ptr registry, socket_ptr_t sock)
 {
 	try
@@ -94,18 +109,12 @@ void session(registry_ptr registry, socket_ptr_t sock)
 				do_document_get(db, engine, sock);
 			} else if (command == "PUT")
 			{
+				do_command_put(db, engine, sock);
+			} else if (command == "FIN")
+			{
+				break;
 			} else
 				err(result_code_t::sError) << "Unknown command " << command;
-//			char data[max_length];
-
-//			boost::system::error_code error;
-//			size_t length = sock->read_some(boost::asio::buffer(data), error);
-//			if (error == boost::asio::error::eof)
-//				break; // Connection closed cleanly by peer.
-//			else if (error)
-//				throw boost::system::system_error(error); // Some other error.
-
-//			boost::asio::write(*sock, boost::asio::buffer(data, length));
 		}
 	} catch (std::exception& e)
 	{
