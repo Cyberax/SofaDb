@@ -1,7 +1,10 @@
 #include "common.h"
+#include "engine.h"
+#include "errors.h"
+#include "database.h"
+#include "server_common.h"
 #include <gflags/gflags.h>
 #include <scope_guard.h>
-#include <boost/asio.hpp>
 
 #undef BOOST_HAS_RVALUE_REFS
 #include <boost/thread.hpp>
@@ -11,18 +14,55 @@
 
 using boost::asio::local::stream_protocol;
 using namespace sofadb;
+//typedef boost::recursive_mutex::scoped_lock scoped_lock;
 typedef boost::shared_ptr<stream_protocol::socket> socket_ptr_t;
 
 DEFINE_string(socket_dir, "/tmp", "Listen socket path");
 DEFINE_string(socket_name, "", "Listen socket name");
 DEFINE_int32(socket_backlog, 10, "Maximum socket backlog");
 
-void session(socket_ptr_t sock)
+struct engine_registry
+{
+	std::recursive_mutex lock_;
+	std::map<std::string, engine_ptr> engines_;
+};
+typedef boost::shared_ptr<engine_registry> registry_ptr;
+
+void session(registry_ptr registry, socket_ptr_t sock)
 {
 	try
 	{
+		//First, read the database file
+		std::string dbfile=read_str(sock);
+
+		engine_ptr engine;
+		{
+			guard_t g(registry->lock_);
+			engine_ptr &ptr=registry->engines_[dbfile];
+			if (!ptr)
+				ptr.reset(new DbEngine(dbfile, false));
+
+			engine=ptr;
+		}
+
+		database_ptr last_db;
+		std::string last_db_name;
 		for (;;)
 		{
+			std::string command = read_str(sock);
+			std::string dbname = read_str(sock);
+			if (dbname.empty())
+				err(result_code_t::sError) << "Empty database";
+
+			database_ptr db=(dbname==last_db_name)?
+						last_db : engine->create_a_database(dbname);
+			if (command=="GET")
+			{
+
+			} else if (command == "PUT")
+			{
+			} else
+				err(result_code_t::sError) << "Unknown command " << command;
 //			char data[max_length];
 
 //			boost::system::error_code error;
@@ -63,11 +103,14 @@ int main(int argc, char **argv)
 	VLOG_MACRO(1) << "Started acceptor on " << socket_file;
 
 	acceptor.listen(FLAGS_socket_backlog);
+
+	registry_ptr registry(new engine_registry());
 	while(true)
 	{
 		socket_ptr_t sock(new stream_protocol::socket(io_service));
 		acceptor.accept(*sock);
-		boost::thread t(&session, sock);
+		VLOG_MACRO(2) << "Accepted connection on " << socket_file;
+		boost::thread t(boost::bind(&session, registry, _1) , sock);
 	}
 
 	return 0;

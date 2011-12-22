@@ -41,6 +41,8 @@ namespace sofadb {
 
 		static void check(const leveldb::Status &status);
 	};
+
+	typedef boost::shared_ptr<DbEngine> engine_ptr;
 };
 
 #endif // ENGINE_H
